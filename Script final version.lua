@@ -1,6 +1,5 @@
 -- ============================================================
--- AXIOM RIVALS v9.8 // Silent 360 + Ragebot 整合版
--- 基於 v9.7，移植 grief.cc 的狂暴機器人 / 虛空連發 / 自動索敵 / 虛空躲藏
+-- AXIOM RIVALS v9.8 // 瞬移開關式持續鎖定
 -- ============================================================
 
 -- ========== 反封號 ==========
@@ -134,24 +133,6 @@ local S = {
     MaxDistance = 2000, HueSpeed = 0.25,
     TeamCheck = true, HideKey = Enum.KeyCode.RightShift, GuiVisible = true,
     AntiAFK = true,
-
-    -- Ragebot 新增
-    RageEnabled       = false,
-    RageAutoTarget    = false,
-    RageAutoShoot     = true,
-    RageHitPart       = "Head",
-    RageShootAttempts = 1,
-    RagePredict       = false,
-    RagePredictMul    = 1.2,
-    RageOrbitHeight   = 2,
-    RageOrbitRadius   = 0,
-    RageFireCD        = 0.05,
-    VoidSpamEnabled   = false,
-    VoidShootMin      = 1,
-    VoidShootMax      = 1,
-    VoidHideMin       = 1,
-    VoidHideMax       = 1,
-    VoidHideReload    = true,
 }
 
 local hasMouseMoveRel = type(mousemoverel) == "function"
@@ -275,7 +256,7 @@ local function findSilentTarget()
             local part = getHitPartName(p.Character, S.SilentHitPart)
             if part then
                 local d = (part.Position - myRoot.Position).Magnitude
-                if d < bestD then best = p; bestD = d end
+                if d < bestD then best, bestD = p, d end
             end
         end
         return best
@@ -288,7 +269,7 @@ local function findSilentTarget()
             local sp, on = worldToScreen(part.Position)
             if on then
                 local d = (sp - center).Magnitude
-                if d <= S.SilentFOV and d < bestD then best = p; bestD = d end
+                if d <= S.SilentFOV and d < bestD then best, bestD = p, d end
             end
         end
     end
@@ -325,7 +306,9 @@ local raySilent = RaycastParams.new()
 raySilent.FilterType = Enum.RaycastFilterType.Blacklist
 
 local function canHitSilentTarget(target)
-    if not S.SilentWallCheck then return target ~= nil and target.Character ~= nil end
+    if not S.SilentWallCheck then
+        return target ~= nil and target.Character ~= nil
+    end
     if not target or not target.Character then return false end
     local part = getHitPartName(target.Character, S.SilentHitPart)
     if not part then return false end
@@ -335,12 +318,15 @@ local function canHitSilentTarget(target)
     if not root then return false end
     raySilent.FilterDescendantsInstances = {myChar, C, target.Character}
     local res = W:Raycast(root.Position, part.Position - root.Position, raySilent)
-    if res and res.Instance then return res.Instance:IsDescendantOf(target.Character) end
+    if res and res.Instance then
+        return res.Instance:IsDescendantOf(target.Character)
+    end
     return true
 end
 
 local function silentAutoFireLoop()
-    if not S.SilentEnabled or not S.SilentAutoShoot then return end
+    if not S.SilentEnabled then return end
+    if not S.SilentAutoShoot then return end
     local now = tick()
     if now - silentLastFire < silentFireCD then return end
     if S.SilentHitChance < 100 then
@@ -355,7 +341,9 @@ end
 task.spawn(function()
     while true do
         task.wait()
-        if S.SilentEnabled and S.SilentAutoShoot then pcall(silentAutoFireLoop) end
+        if S.SilentEnabled and S.SilentAutoShoot then
+            pcall(silentAutoFireLoop)
+        end
     end
 end)
 
@@ -365,303 +353,15 @@ UIS.InputBegan:Connect(function(input, gpe)
     if S.SilentAutoShoot then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local target = findSilentTarget()
-        if target then pcall(fireSilentAt, target) end
-    end
-end)
-
--- ========== 狂暴機器人 / 虛空連發 / 自動索敵 / 虛空躲藏 ==========
-local Rage = {
-    target        = nil,
-    targetPlayer  = nil,
-    immune        = false,
-    syncing       = false,
-    syncConn      = nil,
-    savedCFrame   = nil,
-    orbitAngle    = 0,
-    orbitSpeed    = 9000,
-    serverPos     = nil,
-    velocity      = Vector3.new(0,0,0),
-    lastPos       = nil,
-    lastTime      = 0,
-    lastFire      = 0,
-    voidPhase     = nil,
-    voidLastSwitch = 0,
-    voidDuration  = 0,
-    lastAttackTick = 0,
-}
-
-local function rageValidChar(ch)
-    if not ch or not ch.Parent then return false end
-    local hum = ch:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-    if not ch:FindFirstChild("HumanoidRootPart") then return false end
-    local p = Players:GetPlayerFromCharacter(ch)
-    if not p or p == LP then return false end
-    if S.TeamCheck and not isEnemy(p) then return false end
-    return true
-end
-
-local function rageNearest()
-    local best, bestD = nil, math.huge
-    local cursor = UIS:GetMouseLocation()
-    local cv = Vector2.new(cursor.X, cursor.Y)
-    for _, p in ipairs(getEnemies()) do
-        local ch = p.Character
-        if rageValidChar(ch) then
-            local root = ch:FindFirstChild("HumanoidRootPart")
-            if root then
-                local sp, on = worldToScreen(root.Position)
-                if on then
-                    local d = (Vector2.new(sp.X, sp.Y) - cv).Magnitude
-                    if d < bestD then best = ch; bestD = d end
-                end
-            end
-        end
-    end
-    return best
-end
-
-local function rageUpdateVelocity()
-    if not Rage.target or not S.RagePredict then
-        Rage.velocity = Vector3.new(0,0,0)
-        Rage.lastPos = nil
-        return
-    end
-    local root = Rage.target:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    local now = tick()
-    local dt = now - Rage.lastTime
-    if dt > 0 and dt < 0.1 then
-        local cur = root.Position
-        if Rage.lastPos then
-            local inst = (cur - Rage.lastPos) / dt
-            Rage.velocity = Rage.velocity:Lerp(inst, 0.6)
-        end
-        Rage.lastPos = cur
-        Rage.lastTime = now
-    end
-end
-
-local function ragePredictPos(part, origin)
-    if not S.RagePredict or not part then
-        return part and part.Position or Vector3.new()
-    end
-    local base = part.Position
-    local dist = (base - origin).Magnitude
-    local ping = 0
-    pcall(function()
-        ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() / 1000
-    end)
-    local travel = dist / 3000
-    local total = (travel + ping) * S.RagePredictMul
-    return base + (Rage.velocity * total)
-end
-
-local VOID_COORD = 1e9
-local function voidSnap(hrp)
-    if not hrp then return end
-    pcall(function()
-        hrp.CFrame = CFrame.new(VOID_COORD, -VOID_COORD, VOID_COORD)
-        hrp.AssemblyLinearVelocity = Vector3.new(VOID_COORD, VOID_COORD, VOID_COORD)
-        hrp.AssemblyAngularVelocity = Vector3.new(VOID_COORD, VOID_COORD, VOID_COORD)
-    end)
-end
-
-local function voidRestore(hrp)
-    if not hrp or not Rage.savedCFrame then return end
-    pcall(function()
-        hrp.CFrame = Rage.savedCFrame
-        hrp.AssemblyLinearVelocity = Vector3.new(0,0,0)
-        hrp.AssemblyAngularVelocity = Vector3.new(0,0,0)
-    end)
-end
-
-local function rageTickVoidSpam()
-    if not S.VoidSpamEnabled then return end
-    local now = tick()
-    local elapsed = now - Rage.voidLastSwitch
-    if Rage.voidPhase == "shoot" then
-        if elapsed >= Rage.voidDuration then
-            Rage.voidPhase = "hide"
-            Rage.voidDuration = S.VoidHideMin + math.random() * (S.VoidHideMax - S.VoidHideMin)
-            Rage.voidLastSwitch = now
-        end
-    elseif Rage.voidPhase == "hide" then
-        if elapsed >= Rage.voidDuration then
-            Rage.voidPhase = "shoot"
-            Rage.voidDuration = S.VoidShootMin + math.random() * (S.VoidShootMax - S.VoidShootMin)
-            Rage.voidLastSwitch = now
-        end
-    else
-        Rage.voidPhase = "shoot"
-        Rage.voidDuration = S.VoidShootMin + math.random() * (S.VoidShootMax - S.VoidShootMin)
-        Rage.voidLastSwitch = now
-    end
-end
-
-local function rageFire()
-    if not UseItem or not Utility or not EnumLibrary then return end
-    if not localFighter or not localFighter.EquippedItem then return end
-    if not Rage.target or not rageValidChar(Rage.target) then return end
-    if Rage.immune then return end
-    local now = tick()
-    if now - Rage.lastFire < S.RageFireCD then return end
-    local part = getHitPartName(Rage.target, S.RageHitPart)
-    if not part then return end
-    local myChar = LP.Character
-    local root = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-    local shootPos = Rage.serverPos or root.Position
-    local targetPos = ragePredictPos(part, shootPos)
-    local objId = localFighter.EquippedItem:Get("ObjectID")
-    if not objId then return end
-    local data = {
-        [utf8.char(1)] = {
-            [utf8.char(0)] = Utility:EncodeCFrame(CFrame.new(shootPos, targetPos)),
-            [utf8.char(1)] = Utility:EncodeCFrame(CFrame.new(shootPos, targetPos)),
-            [utf8.char(2)] = part,
-            [utf8.char(3)] = Utility:EncodeCFrame(CFrame.new(0.43, 0.25, 0.42)),
-        },
-    }
-    local attempts = math.clamp(math.floor(S.RageShootAttempts), 1, 3)
-    for _ = 1, attempts do
-        pcall(function()
-            UseItem:FireServer(objId, EnumLibrary:ToEnum("StartShooting"), data, nil)
-        end)
-    end
-    Rage.lastFire = now
-    Rage.lastAttackTick = now
-end
-
-local function rageSetTarget(ch)
-    if not ch then return end
-    Rage.target = ch
-    Rage.targetPlayer = Players:GetPlayerFromCharacter(ch)
-    Rage.immune = false
-    Rage.savedCFrame = nil
-    Rage.lastPos = nil
-    Rage.lastTime = tick()
-end
-
-local function rageClearTarget()
-    if Rage.syncConn then Rage.syncConn:Disconnect(); Rage.syncConn = nil end
-    Rage.syncing = false
-    Rage.target = nil
-    Rage.targetPlayer = nil
-    Rage.immune = false
-    Rage.serverPos = nil
-    Rage.voidPhase = nil
-    local myChar = LP.Character
-    local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    voidRestore(hrp)
-    Rage.savedCFrame = nil
-end
-
-local function rageStartSync()
-    if Rage.syncing then return end
-    Rage.syncing = true
-    Rage.syncConn = RunService.Heartbeat:Connect(function(dt)
-        if not S.RageEnabled then return end
-        if not Rage.target or not rageValidChar(Rage.target) then
-            rageClearTarget()
-            return
-        end
-        if Rage.immune then return end
-
-        local myChar = LP.Character
-        local hrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-
-        if not Rage.savedCFrame then
-            Rage.savedCFrame = hrp.CFrame
-        end
-
-        if S.VoidSpamEnabled then
-            rageTickVoidSpam()
-            if Rage.voidPhase == "hide" then
-                voidSnap(hrp)
-                return
-            end
-        end
-
-        if S.VoidHideReload and localFighter and localFighter.EquippedItem then
-            local reloading = false
-            pcall(function()
-                local it = localFighter.EquippedItem
-                for _, k in ipairs({"Reloading","IsReloading","IsReload"}) do
-                    local v = it:Get(k)
-                    if v == true or v == 1 then reloading = true break end
-                end
-            end)
-            if reloading then
-                voidSnap(hrp)
-                return
-            end
-        end
-
-        local root = Rage.target:FindFirstChild("HumanoidRootPart")
-        if root then
-            local base = root.Position + Vector3.new(0, S.RageOrbitHeight, 0)
-            Rage.orbitAngle = Rage.orbitAngle + Rage.orbitSpeed * dt
-            local offset = Vector3.new(
-                math.cos(Rage.orbitAngle) * S.RageOrbitRadius,
-                0,
-                math.sin(Rage.orbitAngle) * S.RageOrbitRadius
-            )
-            Rage.serverPos = base + offset
-            pcall(function()
-                hrp.CFrame = CFrame.new(Rage.serverPos)
-            end)
-        end
-
-        rageUpdateVelocity()
-
-        if S.RageAutoShoot then
-            rageFire()
-        end
-    end)
-end
-
-task.spawn(function()
-    while true do
-        task.wait(0.2)
-        if S.RageEnabled and S.RageAutoTarget and not Rage.immune then
-            if not Rage.target or not rageValidChar(Rage.target) then
-                local newT = rageNearest()
-                if newT then
-                    rageSetTarget(newT)
-                    rageStartSync()
-                end
-            end
+        if target then
+            pcall(fireSilentAt, target)
         end
     end
 end)
 
-RunService.Heartbeat:Connect(function()
-    if not Rage.targetPlayer then return end
-    local ch = Rage.targetPlayer.Character
-    local root = ch and ch:FindFirstChild("HumanoidRootPart")
-    local immune = root and root:FindFirstChild("Attachment") ~= nil
-    if immune and not Rage.immune then
-        Rage.immune = true
-    elseif not immune and Rage.immune then
-        Rage.immune = false
-        rageStartSync()
-    end
-end)
-
-local function rageToggleKey()
-    if S.RageEnabled and Rage.target then
-        rageClearTarget()
-    else
-        local ch = rageNearest()
-        if ch then rageSetTarget(ch); rageStartSync() end
-    end
-end
-
--- ========== 瞬移到敵後（Backshoot）==========
+-- ========== 瞬移到敵後（開關式持續）==========
 local backshoot = { connection = nil, target = nil, origCFrame = nil }
-local backshootCheckConn = nil
+local backshootMonitorConn = nil
 
 local function closestPlayerBS()
     local best, bestD = nil, math.huge
@@ -681,6 +381,7 @@ end
 local function backshootLoop()
     if backshoot.connection then backshoot.connection:Disconnect() end
     backshoot.connection = RunService.Heartbeat:Connect(function()
+        if not S.BackshootEnabled then return end
         local myChar = LP.Character
         if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
         if not backshoot.target then return end
@@ -695,45 +396,40 @@ local function stopBS()
     if backshoot.connection then backshoot.connection:Disconnect(); backshoot.connection = nil end
 end
 
-local function startBackshootMonitor()
-    if backshootCheckConn then return end
-    backshootCheckConn = RunService.Heartbeat:Connect(function()
-        if not backshoot.target then
-            if backshootCheckConn then backshootCheckConn:Disconnect(); backshootCheckConn = nil end
-            return
-        end
-        local hum = backshoot.target:FindFirstChild("Humanoid")
-        if not hum or hum.Health <= 0 then
-            local myChar = LP.Character
-            if myChar and myChar:FindFirstChild("HumanoidRootPart") and backshoot.origCFrame then
-                myChar.HumanoidRootPart.CFrame = backshoot.origCFrame
+local function startContinuousBackshoot()
+    if backshootMonitorConn then backshootMonitorConn:Disconnect(); backshootMonitorConn = nil end
+    backshootMonitorConn = RunService.Heartbeat:Connect(function()
+        if not S.BackshootEnabled then return end
+        local mc = LP.Character
+        if not mc or not mc:FindFirstChild("HumanoidRootPart") then return end
+
+        -- 目標死亡或消失 → 回原點，清目標
+        if backshoot.target then
+            local hum = backshoot.target:FindFirstChild("Humanoid")
+            if not hum or hum.Health <= 0 or not backshoot.target.Parent then
+                if backshoot.origCFrame then
+                    mc.HumanoidRootPart.CFrame = backshoot.origCFrame
+                end
+                backshoot.target = nil
+                stopBS()
+                backshoot.origCFrame = nil
             end
-            backshoot.target = nil
-            stopBS()
-            if backshootCheckConn then backshootCheckConn:Disconnect(); backshootCheckConn = nil end
+        end
+
+        -- 沒有目標 → 找最近的敵人
+        if not backshoot.target then
+            local target = closestPlayerBS()
+            if target then
+                backshoot.target = target
+                backshoot.origCFrame = mc.HumanoidRootPart.CFrame
+                backshootLoop()
+            end
         end
     end)
 end
 
-local function toggleBackshoot()
-    local mc = LP.Character
-    if not mc or not mc:FindFirstChild("HumanoidRootPart") then return end
-    if backshoot.target then
-        if backshoot.origCFrame then mc.HumanoidRootPart.CFrame = backshoot.origCFrame end
-        backshoot.target = nil
-        stopBS()
-        if backshootCheckConn then backshootCheckConn:Disconnect(); backshootCheckConn = nil end
-    else
-        backshoot.target = closestPlayerBS()
-        if backshoot.target then
-            backshoot.origCFrame = mc.HumanoidRootPart.CFrame
-            if S.BackshootEnabled then backshootLoop() end
-            startBackshootMonitor()
-        end
-    end
-end
-
 local function releaseBackshoot()
+    if backshootMonitorConn then backshootMonitorConn:Disconnect(); backshootMonitorConn = nil end
     local mc = LP.Character
     if backshoot.target then
         if mc and mc:FindFirstChild("HumanoidRootPart") and backshoot.origCFrame then
@@ -741,7 +437,7 @@ local function releaseBackshoot()
         end
         backshoot.target = nil
         stopBS()
-        if backshootCheckConn then backshootCheckConn:Disconnect(); backshootCheckConn = nil end
+        backshoot.origCFrame = nil
     end
 end
 
@@ -750,7 +446,11 @@ LP.CharacterRemoving:Connect(function()
 end)
 
 -- ========== 反瞄準（Anti-Aim）==========
-local antiAimState = { frameCounter = 0, smoothYaw = 0, smoothPitch = 0 }
+local antiAimState = {
+    frameCounter = 0,
+    smoothYaw = 0,
+    smoothPitch = 0,
+}
 
 local function getRandomInRange(mn, mx)
     return mn + math.random() * (mx - mn)
@@ -868,7 +568,9 @@ local function hasLOS(part, targetModel)
     if not part or not C then return false end
     rayParams.FilterDescendantsInstances = {LP.Character, C, targetModel}
     local res = W:Raycast(C.CFrame.Position, part.Position - C.CFrame.Position, rayParams)
-    if res and res.Instance then return res.Instance:IsDescendantOf(targetModel) end
+    if res and res.Instance then
+        return res.Instance:IsDescendantOf(targetModel)
+    end
     return true
 end
 
@@ -983,7 +685,7 @@ local function updateCrosshair(t)
     end
 end
 
--- ========== 移動 ==========
+-- ========== Movement ==========
 local flyBP, flyBG = nil, nil
 local flyActive = false
 
@@ -1053,7 +755,7 @@ UIS.JumpRequest:Connect(function()
     end
 end)
 
--- ========== 槍枝修改 ==========
+-- ========== Gun Mods ==========
 if GunModule and GunModule.StartShooting then
     local origGunShoot = GunModule.StartShooting
     GunModule.StartShooting = function(self, p26, p27)
@@ -1153,7 +855,7 @@ local function updateMuzzleFlash()
     end
 end
 
--- ========== 裝置偽裝 ==========
+-- ========== Device Spoof ==========
 local DEVICE_CODES = {
     ["Mobile"] = "Touch", ["Console"] = "Gamepad",
     ["VR"] = "VR", ["PC"] = "MouseKeyboard",
@@ -1453,7 +1155,7 @@ end)
 
 local Window = Library:CreateWindow({
     Title = "AXIOM // RIVALS v9.8",
-    Footer = "Silent 360 + Ragebot | Obsidian GUI",
+    Footer = "Grief.cc 功能 | Obsidian GUI",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
 
@@ -1463,7 +1165,7 @@ local MovementTab = Window:AddTab("Movement", "person-standing")
 local GunTab = Window:AddTab("Gun", "crosshair")
 local MiscTab = Window:AddTab("Misc", "circle-ellipsis")
 
--- ========== Combat: Silent Aim ==========
+-- Combat
 local silentGroup = CombatTab:AddLeftGroupbox("Silent Aim")
 silentGroup:AddToggle("Silent_Enabled", {
     Text = "Enable Silent Aim", Default = false,
@@ -1484,88 +1186,6 @@ silentGroup:AddSlider("Silent_FOV", { Text = "FOV Radius", Default = 150, Min = 
 silentGroup:AddSlider("Silent_HitChance", { Text = "Hit Chance %", Default = 100, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) S.SilentHitChance = v end })
 silentGroup:AddToggle("Silent_FollowMuzzle", { Text = "Follow Muzzle", Default = false, Callback = function(v) S.SilentFollowMuzzle = v end })
 
--- ========== Combat: Ragebot ==========
-local rageGroup = CombatTab:AddLeftGroupbox("狂暴機器人 (Ragebot)")
-rageGroup:AddToggle("Rage_Enabled", {
-    Text = "啟用狂暴機器人", Default = false,
-    Callback = function(v)
-        S.RageEnabled = v
-        if not v then rageClearTarget() end
-    end
-}):AddKeyPicker("Rage_Key", {
-    Text = "Ragebot", Default = "None", Mode = "Toggle", NoUI = true,
-    SyncToggleState = true, Callback = function(state)
-        S.RageEnabled = state
-        if not state then rageClearTarget() end
-    end
-})
-rageGroup:AddToggle("Rage_AutoTarget", { Text = "自動索敵", Default = false, Callback = function(v) S.RageAutoTarget = v end })
-rageGroup:AddToggle("Rage_AutoShoot", { Text = "自動開火", Default = true, Callback = function(v) S.RageAutoShoot = v end })
-rageGroup:AddToggle("Rage_Predict", { Text = "預測", Default = false, Callback = function(v) S.RagePredict = v end })
-rageGroup:AddSlider("Rage_PredictMul", { Text = "預測倍率", Default = 1.2, Min = 0.1, Max = 3.0, Rounding = 1, Compact = true, Callback = function(v) S.RagePredictMul = v end })
-rageGroup:AddDropdown("Rage_HitPart", {
-    Text = "命中部位", Default = "Head",
-    Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"},
-    Callback = function(v) S.RageHitPart = v end
-})
-rageGroup:AddSlider("Rage_Attempts", { Text = "開火次數", Default = 1, Min = 1, Max = 3, Rounding = 0, Compact = true, Callback = function(v) S.RageShootAttempts = v end })
-rageGroup:AddSlider("Rage_OrbitH", { Text = "環繞高度", Default = 2, Min = -10, Max = 15, Rounding = 1, Compact = true, Callback = function(v) S.RageOrbitHeight = v end })
-rageGroup:AddSlider("Rage_OrbitR", { Text = "環繞半徑", Default = 0, Min = 0, Max = 15, Rounding = 1, Compact = true, Callback = function(v) S.RageOrbitRadius = v end })
-rageGroup:AddSlider("Rage_FireCD", { Text = "開火冷卻", Default = 0.05, Min = 0.01, Max = 0.5, Rounding = 2, Compact = true, Callback = function(v) S.RageFireCD = v end })
-rageGroup:AddButton({
-    Text = "手動鎖定最近敵人",
-    Func = function()
-        local ch = rageNearest()
-        if ch then rageSetTarget(ch); rageStartSync() end
-    end
-})
-rageGroup:AddButton({
-    Text = "解除鎖定",
-    Func = function() rageClearTarget() end
-})
-
--- ========== Combat: Void Spam ==========
-local voidGroup = CombatTab:AddLeftGroupbox("虛空連發 (Void Spam)")
-voidGroup:AddToggle("Void_Enabled", { Text = "啟用虛空連發", Default = false, Callback = function(v)
-    S.VoidSpamEnabled = v
-    if not v then Rage.voidPhase = nil end
-end })
-voidGroup:AddSlider("Void_ShootMin", { Text = "攻擊時間", Default = 1, Min = 0.1, Max = 2, Rounding = 1, Compact = true, Callback = function(v) S.VoidShootMin = v; S.VoidShootMax = v end })
-voidGroup:AddSlider("Void_HideMin", { Text = "躲藏時間", Default = 1, Min = 0.1, Max = 2, Rounding = 1, Compact = true, Callback = function(v) S.VoidHideMin = v; S.VoidHideMax = v end })
-voidGroup:AddToggle("Void_HideReload", { Text = "換彈時躲藏", Default = true, Callback = function(v) S.VoidHideReload = v end })
-
--- ========== Combat: Backshoot ==========
-local backGroup = CombatTab:AddRightGroupbox("瞬移敵後（Backshoot）")
-backGroup:AddToggle("Backshoot_Enabled", {
-    Text = "啟用瞬移", Default = false,
-    Callback = function(v) S.BackshootEnabled = v end
-})
-backGroup:AddButton({
-    Text = "瞬移到最近敵人身後",
-    Func = function() toggleBackshoot() end
-})
-backGroup:AddButton({
-    Text = "解除瞬移（回原位）",
-    Func = function() releaseBackshoot() end
-})
-
--- ========== Combat: Anti-Aim ==========
-local antiGroup = CombatTab:AddRightGroupbox("反瞄準（Anti-Aim）")
-antiGroup:AddToggle("AntiAim_Enabled", {
-    Text = "啟用反瞄準", Default = false,
-    Callback = function(v) S.AntiAimEnabled = v; updateAntiAim() end
-})
-antiGroup:AddDropdown("AntiAim_Yaw", { Text = "Yaw", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimYaw = v end })
-antiGroup:AddDropdown("AntiAim_Pitch", { Text = "Pitch", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimPitch = v end })
-antiGroup:AddDropdown("AntiAim_Angle", { Text = "Angle", Default = "none", Values = {"none","tilt 45","tilt 90","upside down","custom"}, Callback = function(v) S.AntiAimAngle = v end })
-antiGroup:AddSlider("AntiAim_CustomAngle", { Text = "Custom Angle", Default = 0, Min = 0, Max = 360, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimCustomAngle = v end })
-antiGroup:AddSlider("AntiAim_MinSpeed", { Text = "Min Speed", Default = 10, Min = 1, Max = 50, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMinSpeed = v end })
-antiGroup:AddSlider("AntiAim_MaxSpeed", { Text = "Max Speed", Default = 20, Min = 1, Max = 100, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMaxSpeed = v end })
-antiGroup:AddSlider("AntiAim_MinAngle", { Text = "Min Angle", Default = 30, Min = 1, Max = 180, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMinAngle = v end })
-antiGroup:AddSlider("AntiAim_MaxAngle", { Text = "Max Angle", Default = 60, Min = 1, Max = 180, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMaxAngle = v end })
-antiGroup:AddToggle("AntiAim_RandomAngle", { Text = "Random Angle", Default = false, Callback = function(v) S.AntiAimRandomAngle = v end })
-
--- ========== Combat: 模擬滑鼠自瞄 ==========
 local aimGroup = CombatTab:AddRightGroupbox("自瞄（模擬滑鼠）")
 aimGroup:AddToggle("Aimbot_Enabled", {
     Text = "Enable Aimbot", Default = false,
@@ -1583,7 +1203,71 @@ aimGroup:AddSlider("Aimbot_Deadzone", { Text = "滑鼠死區", Default = 2, Min 
 aimGroup:AddSlider("Aimbot_MaxStep", { Text = "單幀上限", Default = 200, Min = 10, Max = 500, Rounding = 0, Compact = true, Callback = function(v) S.MouseMaxStep = v end })
 aimGroup:AddSlider("Aimbot_Stuck", { Text = "卡住解鎖秒", Default = 3, Min = 0.5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.AimStuckTime = v end })
 
--- ========== Visuals ==========
+-- 瞬移敵後（開關式）
+local backGroup = CombatTab:AddRightGroupbox("瞬移敵後（Backshoot）")
+backGroup:AddToggle("Backshoot_Enabled", {
+    Text = "啟用瞬移（持續黏敵人）",
+    Default = false,
+    Callback = function(v)
+        S.BackshootEnabled = v
+        if v then
+            startContinuousBackshoot()
+        else
+            releaseBackshoot()
+        end
+    end
+})
+
+-- 反瞄準
+local antiGroup = CombatTab:AddRightGroupbox("反瞄準（Anti-Aim）")
+antiGroup:AddToggle("AntiAim_Enabled", {
+    Text = "啟用反瞄準", Default = false,
+    Callback = function(v)
+        S.AntiAimEnabled = v
+        updateAntiAim()
+    end
+})
+antiGroup:AddDropdown("AntiAim_Yaw", {
+    Text = "Yaw", Default = "jitter",
+    Values = {"none","jitter","spinbot","random"},
+    Callback = function(v) S.AntiAimYaw = v end
+})
+antiGroup:AddDropdown("AntiAim_Pitch", {
+    Text = "Pitch", Default = "jitter",
+    Values = {"none","jitter","spinbot","random"},
+    Callback = function(v) S.AntiAimPitch = v end
+})
+antiGroup:AddDropdown("AntiAim_Angle", {
+    Text = "Angle", Default = "none",
+    Values = {"none","tilt 45","tilt 90","upside down","custom"},
+    Callback = function(v) S.AntiAimAngle = v end
+})
+antiGroup:AddSlider("AntiAim_CustomAngle", {
+    Text = "Custom Angle", Default = 0, Min = 0, Max = 360, Rounding = 1, Compact = true,
+    Callback = function(v) S.AntiAimCustomAngle = v end
+})
+antiGroup:AddSlider("AntiAim_MinSpeed", {
+    Text = "Min Speed", Default = 10, Min = 1, Max = 50, Rounding = 1, Compact = true,
+    Callback = function(v) S.AntiAimMinSpeed = v end
+})
+antiGroup:AddSlider("AntiAim_MaxSpeed", {
+    Text = "Max Speed", Default = 20, Min = 1, Max = 100, Rounding = 1, Compact = true,
+    Callback = function(v) S.AntiAimMaxSpeed = v end
+})
+antiGroup:AddSlider("AntiAim_MinAngle", {
+    Text = "Min Angle", Default = 30, Min = 1, Max = 180, Rounding = 1, Compact = true,
+    Callback = function(v) S.AntiAimMinAngle = v end
+})
+antiGroup:AddSlider("AntiAim_MaxAngle", {
+    Text = "Max Angle", Default = 60, Min = 1, Max = 180, Rounding = 1, Compact = true,
+    Callback = function(v) S.AntiAimMaxAngle = v end
+})
+antiGroup:AddToggle("AntiAim_RandomAngle", {
+    Text = "Random Angle", Default = false,
+    Callback = function(v) S.AntiAimRandomAngle = v end
+})
+
+-- Visuals
 local espGroup = VisualsTab:AddLeftGroupbox("ESP")
 espGroup:AddToggle("ESP_Enabled", { Text = "ESP 開關", Default = true, Callback = function(v) S.ESPEnabled = v end })
 espGroup:AddToggle("ESP_Name", { Text = "名字", Default = true, Callback = function(v) S.ShowName = v end })
@@ -1600,16 +1284,16 @@ crossGroup:AddToggle("Crosshair_ShowLines", { Text = "Show Lines", Default = tru
 crossGroup:AddSlider("Crosshair_Spin", { Text = "Spin Speed", Default = 150, Min = 0, Max = 340, Rounding = 0, Compact = true, Callback = function(v) S.CrosshairSpinSpeed = v end })
 crossGroup:AddDropdown("Crosshair_Mode", { Text = "Mode", Default = "static", Values = {"static","follow muzzle"}, Callback = function(v) S.CrosshairMode = v end })
 
--- ========== Movement ==========
+-- Movement
 local moveGroup = MovementTab:AddLeftGroupbox("Movement")
 moveGroup:AddToggle("Move_InfJump", { Text = "Infinite Jump", Default = false, Callback = function(v) S.InfJump = v end })
 moveGroup:AddToggle("Move_Noclip", { Text = "Noclip", Default = false, Callback = function(v) S.Noclip = v end })
-moveGroup:AddToggle("Move_Fly", { Text = "Fly", Default = false, Callback = function(v) S.FlyEnabled = v; updateFly() end })
+moveGroup:AddToggle("Move_Fly", { Text = "Fly", Default = false, Callback = function(v) S.FlyEnabled = v updateFly() end })
 moveGroup:AddSlider("Move_WalkSpeed", { Text = "WalkSpeed", Default = 16, Min = 16, Max = 200, Rounding = 0, Compact = true, Callback = function(v) S.WalkSpeed = v end })
 moveGroup:AddSlider("Move_JumpPower", { Text = "JumpPower", Default = 50, Min = 50, Max = 300, Rounding = 0, Compact = true, Callback = function(v) S.JumpPower = v end })
 moveGroup:AddSlider("Move_FlySpeed", { Text = "Fly Speed", Default = 50, Min = 16, Max = 750, Rounding = 0, Compact = true, Callback = function(v) S.FlySpeed = v end })
 
--- ========== Gun ==========
+-- Gun
 local gunGroup = GunTab:AddLeftGroupbox("Gun Mods")
 gunGroup:AddToggle("Gun_AntiKatana", { Text = "Anti Katana", Default = false, Callback = function(v) S.AntiKatana = v end })
 gunGroup:AddToggle("Gun_NoCooldown", { Text = "No Cooldown", Default = false, Callback = function(v) S.NoCooldown = v end })
@@ -1617,12 +1301,12 @@ gunGroup:AddToggle("Gun_NoSpread", { Text = "No Spread (無散射)", Default = f
 gunGroup:AddToggle("Gun_NoRecoil", { Text = "No Recoil", Default = false, Callback = function(v) S.NoRecoil = v end })
 gunGroup:AddToggle("Gun_MaxAccuracy", { Text = "Max Accuracy", Default = false, Callback = function(v) S.MaxAccuracy = v end })
 gunGroup:AddToggle("Gun_RapidAttack", { Text = "Rapid Attack", Default = false, Callback = function(v) S.RapidAttack = v end })
-gunGroup:AddToggle("Gun_NoMuzzleFlash", { Text = "No Muzzle Flash", Default = false, Callback = function(v) S.NoMuzzleFlash = v; updateMuzzleFlash() end })
+gunGroup:AddToggle("Gun_NoMuzzleFlash", { Text = "No Muzzle Flash", Default = false, Callback = function(v) S.NoMuzzleFlash = v updateMuzzleFlash() end })
 
--- ========== Misc ==========
+-- Misc
 local deviceGroup = MiscTab:AddLeftGroupbox("Device Spoof")
-deviceGroup:AddToggle("Device_Spoof", { Text = "Enable", Default = false, Callback = function(v) S.DeviceSpoof = v; applyDeviceSpoof() end })
-deviceGroup:AddDropdown("Device_Type", { Text = "Type", Default = "PC", Values = {"PC","Console","Mobile","VR"}, Callback = function(v) S.DeviceType = v; if S.DeviceSpoof then applyDeviceSpoof() end end })
+deviceGroup:AddToggle("Device_Spoof", { Text = "Enable", Default = false, Callback = function(v) S.DeviceSpoof = v applyDeviceSpoof() end })
+deviceGroup:AddDropdown("Device_Type", { Text = "Type", Default = "PC", Values = {"PC","Console","Mobile","VR"}, Callback = function(v) S.DeviceType = v if S.DeviceSpoof then applyDeviceSpoof() end end })
 
 local miscGroup = MiscTab:AddRightGroupbox("Misc")
 miscGroup:AddToggle("Misc_TeamCheck", { Text = "隊伍檢測（開啟自瞄時自動啟用）", Default = true, Callback = function(v) S.TeamCheck = v end })
@@ -1630,7 +1314,7 @@ miscGroup:AddToggle("Misc_AntiAFK", { Text = "反 AFK", Default = true, Callback
 miscGroup:AddButton({ Text = "卸載腳本", Func = function()
     pcall(function() RunService:UnbindFromRenderStep(AIMBOT_BIND) end)
     if antiAimConn then antiAimConn:Disconnect() end
-    if Rage.syncConn then Rage.syncConn:Disconnect() end
+    if backshootMonitorConn then backshootMonitorConn:Disconnect() end
     if espGui then espGui:Destroy() end
     for _, line in ipairs(crosshairLines) do pcall(function() line:Remove() end) end
     for k, _ in pairs(espCache) do clESP(k) end
@@ -1710,5 +1394,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "AXIOM v9.8", Description = "Silent 360 + Ragebot 整合完成", Time = 4 })
+Library:Notify({ Title = "AXIOM v9.8", Description = "瞬移開關式持續鎖定", Time = 4 })
 print("[v9.8] 完整載入完成")
