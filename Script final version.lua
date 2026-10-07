@@ -1,5 +1,6 @@
 -- ============================================================
--- v3 Hub // RIVALS
+-- v3 Hub // RIVALS // 修復版
+-- 修復：靜默自瞄 localFighter 失效、瞬移繞圈 monitor 卡死
 -- ============================================================
 
 -- ========== 反封號 ==========
@@ -95,6 +96,47 @@ pcall(function() GunModule = require(PlayerScripts:WaitForChild("Modules", 8):Wa
 pcall(function() MeleeModule = require(PlayerScripts:WaitForChild("Modules", 8):WaitForChild("ItemTypes", 5):WaitForChild("Melee", 5)) end)
 pcall(function() GameplayUtility = require(Modules:WaitForChild("GameplayUtility", 5)) end)
 
+-- ========== 修復 1：動態取得 localFighter ==========
+-- 原本 localFighter 只在開頭抓一次，死亡重生後就失效
+-- 改成每次要用時動態拿，並加上快取與失效偵測
+local _fighterCache = nil
+local _fighterCacheTime = 0
+local FATCHER_CACHE_TTL = 0.25
+
+local function getLocalFighter()
+    local now = tick()
+    -- 快取還新鮮 + 還是活的 → 直接用
+    if _fighterCache
+       and (now - _fighterCacheTime) < FATCHER_CACHE_TTL
+       and _fighterCache.EquippedItem ~= nil
+    then
+        return _fighterCache
+    end
+
+    -- 重新抓
+    local ok, fc = pcall(function()
+        return require(LP.PlayerScripts.Controllers.FighterController)
+    end)
+    if ok and fc and fc.LocalFighter then
+        _fighterCache = fc.LocalFighter
+        _fighterCacheTime = now
+        return _fighterCache
+    end
+
+    -- 抓不到就清快取
+    _fighterCache = nil
+    return nil
+end
+
+-- 重生時清快取，確保新角色拿到新 LocalFighter
+LP.CharacterAdded:Connect(function()
+    _fighterCache = nil
+    _fighterCacheTime = 0
+    task.wait(0.5)
+    getLocalFighter()
+end)
+
+-- 保留原本的 localFighter 給其他模組引用（gun hook 那些不需要換）
 local localFighter = FighterController and FighterController.LocalFighter
 
 local Remotes = RS:FindFirstChild("Remotes")
@@ -117,8 +159,8 @@ local S = {
     OrbitSpeed = 3,
     OrbitRadius = 5,
     OrbitHeight = 1,
-    OrbitDelay = 0,          -- 新增：繞圈啟動延遲（秒）
-    OrbitDeathRespawn = true, -- 新增：死亡復活自動重啟
+    OrbitDelay = 0,
+    OrbitDeathRespawn = true,
 
     AntiAimEnabled = false, AntiAimYaw = "jitter", AntiAimPitch = "jitter",
     AntiAimAngle = "none", AntiAimCustomAngle = 0,
@@ -222,7 +264,7 @@ local function getEnemiesForESP()
     return out
 end
 
--- ========== Silent Aim ==========
+-- ========== Silent Aim（修復版）==========
 local silentLastFire = 0
 local silentFireCD = 0.01
 
@@ -290,16 +332,24 @@ local function findSilentTarget()
     return best
 end
 
+-- 修復：每次開火都動態拿 localFighter，並檢查 UseItem 存在
 local function fireSilentAt(target)
     if not UseItem or not Utility or not EnumLibrary then return false end
-    if not localFighter or not localFighter.EquippedItem then return false end
+    if not target or not target.Character or not target.Character.Parent then return false end
+
+    -- 動態取得最新 LocalFighter（這是主要修復點）
+    local lf = getLocalFighter()
+    if not lf or not lf.EquippedItem then return false end
+
     local part = getHitPartName(target.Character, S.SilentHitPart)
     if not part then return false end
     local myChar = LP.Character
     local root = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not root then return false end
-    local objId = localFighter.EquippedItem:Get("ObjectID")
+
+    local objId = lf.EquippedItem:Get("ObjectID")
     if not objId then return false end
+
     local shootPos = root.Position
     local targetPos = part.Position
     local data = {
@@ -310,10 +360,10 @@ local function fireSilentAt(target)
             [utf8.char(3)] = Utility:EncodeCFrame(CFrame.new(0.43, 0.25, 0.42)),
         },
     }
-    pcall(function()
+    local ok = pcall(function()
         UseItem:FireServer(objId, EnumLibrary:ToEnum("StartShooting"), data, nil)
     end)
-    return true
+    return ok
 end
 
 local raySilent = RaycastParams.new()
@@ -352,12 +402,10 @@ local function silentAutoFireLoop()
     if fireSilentAt(target) then silentLastFire = now end
 end
 
-task.spawn(function()
-    while true do
-        task.wait()
-        if S.SilentEnabled and S.SilentAutoShoot then
-            pcall(silentAutoFireLoop)
-        end
+-- 自動開火迴圈改成用 RunService.Heartbeat，比 task.wait() 穩
+local silentLoopConn = RunService.Heartbeat:Connect(function()
+    if S.SilentEnabled and S.SilentAutoShoot then
+        pcall(silentAutoFireLoop)
     end
 end)
 
@@ -373,7 +421,7 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- ========== 瞬移繞圈（含延遲 + 死亡復活保持）==========
+-- ========== 瞬移繞圈（修復版）==========
 local backshoot = { connection = nil, target = nil, origCFrame = nil, armedAt = 0 }
 local backshootMonitorConn = nil
 local orbit = { angle = 0 }
@@ -393,11 +441,18 @@ local function closestPlayerBS()
     return best
 end
 
+local function targetAlive(ch)
+    if not ch or not ch.Parent then return false end
+    local hum = ch:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
+    if not ch:FindFirstChild("HumanoidRootPart") then return false end
+    return true
+end
+
 local function backshootLoop()
     if backshoot.connection then backshoot.connection:Disconnect() end
     backshoot.connection = RunService.Heartbeat:Connect(function(dt)
         if not S.BackshootEnabled then return end
-        -- 延遲：目標鎖定後先等 OrbitDelay 秒才開始繞
         if tick() - backshoot.armedAt < S.OrbitDelay then return end
         local myChar = LP.Character
         if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
@@ -412,7 +467,10 @@ local function backshootLoop()
             math.sin(orbit.angle) * S.OrbitRadius
         )
         local orbitPos = tr.Position + offset
-        myChar.HumanoidRootPart.CFrame = CFrame.new(orbitPos, tr.Position)
+        -- 用 pcall 保護，避免目標突然傳送造成 CFrame 錯誤
+        pcall(function()
+            myChar.HumanoidRootPart.CFrame = CFrame.new(orbitPos, tr.Position)
+        end)
     end)
 end
 
@@ -420,27 +478,36 @@ local function stopBS()
     if backshoot.connection then backshoot.connection:Disconnect(); backshoot.connection = nil end
 end
 
+local function clearBackshootTarget(restorePos)
+    if restorePos then
+        local mc = LP.Character
+        if mc and mc:FindFirstChild("HumanoidRootPart") and backshoot.origCFrame then
+            pcall(function() mc.HumanoidRootPart.CFrame = backshoot.origCFrame end)
+        end
+    end
+    backshoot.target = nil
+    backshoot.origCFrame = nil
+    stopBS()
+end
+
+-- 修復：monitor 用 RunService.Heartbeat 重綁，確保死亡重生後還能掛回來
 local function startContinuousBackshoot()
     if backshootMonitorConn then backshootMonitorConn:Disconnect(); backshootMonitorConn = nil end
     backshootMonitorConn = RunService.Heartbeat:Connect(function()
         if not S.BackshootEnabled then return end
-        local mc = LP.Character
-        if not mc or not mc:FindFirstChild("HumanoidRootPart") then return end
 
-        -- 目標死了就清掉
-        if backshoot.target then
-            local hum = backshoot.target:FindFirstChild("Humanoid")
-            if not hum or hum.Health <= 0 or not backshoot.target.Parent then
-                if backshoot.origCFrame then
-                    pcall(function() mc.HumanoidRootPart.CFrame = backshoot.origCFrame end)
-                end
-                backshoot.target = nil
-                stopBS()
-                backshoot.origCFrame = nil
-            end
+        -- 自己沒角色就先等，不要清 monitor
+        local mc = LP.Character
+        if not mc or not mc:FindFirstChild("HumanoidRootPart") then
+            return
         end
 
-        -- 沒目標就找最近的，並記錄武裝時間
+        -- 目標死了或消失 → 清掉，但不還原位置（重生時座標本來就重置）
+        if backshoot.target and not targetAlive(backshoot.target) then
+            clearBackshootTarget(false)
+        end
+
+        -- 沒目標就找最近的
         if not backshoot.target then
             local target = closestPlayerBS()
             if target then
@@ -456,33 +523,38 @@ end
 
 local function releaseBackshoot()
     if backshootMonitorConn then backshootMonitorConn:Disconnect(); backshootMonitorConn = nil end
-    local mc = LP.Character
-    if backshoot.target then
-        if mc and mc:FindFirstChild("HumanoidRootPart") and backshoot.origCFrame then
-            pcall(function() mc.HumanoidRootPart.CFrame = backshoot.origCFrame end)
-        end
-        backshoot.target = nil
-        stopBS()
-        backshoot.origCFrame = nil
-    end
+    clearBackshootTarget(true)
 end
 
--- 角色重生：如果繞圈開著，自動重啟
+-- 修復：重生後等角色載入完整再重啟，並重綁 monitor
 LP.CharacterAdded:Connect(function(char)
-    task.wait(1.5)
+    -- 先清掉舊目標的殘留
+    backshoot.target = nil
+    backshoot.origCFrame = nil
+    stopBS()
+
+    if not S.BackshootEnabled then return end
+    if not S.OrbitDeathRespawn then return end
+
+    -- 等角色 + HumanoidRootPart 都出來
+    local ok = pcall(function()
+        char:WaitForChild("HumanoidRootPart", 5)
+        char:WaitForChild("Humanoid", 5)
+    end)
+    if not ok then return end
+
+    task.wait(1.0 + S.OrbitDelay)
     if S.BackshootEnabled then
-        task.wait(S.OrbitDelay)
         pcall(startContinuousBackshoot)
         print("[v3 Hub] 角色重生，繞圈自動重啟")
     end
 end)
 
+-- 死亡時只清目標，不動 monitor（monitor 會自己等角色回來）
 LP.CharacterRemoving:Connect(function()
-    -- 只清連線，不清 S.BackshootEnabled（保留開關，重生後自動接回）
-    if backshootMonitorConn then backshootMonitorConn:Disconnect(); backshootMonitorConn = nil end
-    if backshoot.connection then backshoot.connection:Disconnect(); backshoot.connection = nil end
     backshoot.target = nil
     backshoot.origCFrame = nil
+    stopBS()
 end)
 
 -- ========== 反瞄準 ==========
@@ -562,7 +634,9 @@ local function stepAntiAim()
     local yaw = calcAntiAimYaw()
     local pitch = calcAntiAimPitch()
     local roll = calcAntiAimRoll()
-    root.CFrame = root.CFrame * CFrame.Angles(pitch, yaw, roll)
+    pcall(function()
+        root.CFrame = root.CFrame * CFrame.Angles(pitch, yaw, roll)
+    end)
 end
 
 local function updateAntiAim()
@@ -1342,6 +1416,7 @@ miscGroup:AddButton({ Text = "卸載腳本", Func = function()
     pcall(function() RunService:UnbindFromRenderStep(AIMBOT_BIND) end)
     if antiAimConn then antiAimConn:Disconnect() end
     if backshootMonitorConn then backshootMonitorConn:Disconnect() end
+    if silentLoopConn then silentLoopConn:Disconnect() end
     if espGui then espGui:Destroy() end
     for _, line in ipairs(crosshairLines) do pcall(function() line:Remove() end) end
     for k, _ in pairs(espCache) do clESP(k) end
@@ -1430,5 +1505,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "v3 Hub", Description = "已載入 | RIVALS", Time = 4 })
+Library:Notify({ Title = "v3 Hub", Description = "靜默 + 瞬移修復完成", Time = 4 })
 print("[v3 Hub] 完整載入完成")
