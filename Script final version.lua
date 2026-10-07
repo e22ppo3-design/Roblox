@@ -1,5 +1,6 @@
 -- ============================================================
--- v3 Hub // RIVALS v10.2
+-- v3 Hub // RIVALS v10.4
+-- v10.3 移除自動載入參數，保留自動執行 + 自動排隊
 -- ============================================================
 
 -- ========== 反封號 ==========
@@ -36,7 +37,6 @@ if hookmetamethod and getrawmetatable and setreadonly then
         return oldNamecall(self, ...)
     end)
     pcall(function() setreadonly(mt, true) end)
-    print("[v10.2] Kick hook 已安裝")
 end
 
 task.spawn(function()
@@ -103,11 +103,7 @@ local FighterRemote = Replication and Replication:FindFirstChild("Fighter")
 local UseItem = FighterRemote and FighterRemote:FindFirstChild("UseItem")
 local SetControls = FighterRemote and FighterRemote:FindFirstChild("SetControls")
 
-print("[v10.2] Utility:", Utility ~= nil, "| EnumLibrary:", EnumLibrary ~= nil)
-print("[v10.2] Gun:", GunModule ~= nil, "| Melee:", MeleeModule ~= nil)
-print("[v10.2] UseItem:", UseItem ~= nil, "| SetControls:", SetControls ~= nil)
-
--- 動態取得 LocalFighter（死亡重生修復）
+-- 動態取得 LocalFighter
 local _fighterCache = nil
 local _fighterCacheTime = 0
 local function getLocalFighter()
@@ -140,28 +136,13 @@ local S = {
     Silent360 = false,
 
     BackshootEnabled = false,
-    OrbitSpeed = 3,
-    OrbitRadius = 5,
-    OrbitHeight = 1,
-    OrbitDelay = 0,
-    OrbitDeathRespawn = true,
+    OrbitSpeed = 3, OrbitRadius = 5, OrbitHeight = 1, OrbitDelay = 0, OrbitDeathRespawn = true,
 
-    -- Ragebot 新增
-    RageEnabled       = false,
-    RageAutoTarget    = false,
-    RageAutoShoot     = true,
-    RageHitPart       = "Head",
-    RageShootAttempts = 1,
-    RagePredict       = false,
-    RagePredictMul    = 1.2,
-    RageOrbitHeight   = 2,
-    RageFireCD        = 0.05,
-    VoidSpamEnabled   = false,
-    VoidShootMin      = 1,
-    VoidShootMax      = 1,
-    VoidHideMin       = 1,
-    VoidHideMax       = 1,
-    VoidHideReload    = true,
+    RageEnabled = false, RageAutoTarget = false, RageAutoShoot = true,
+    RageHitPart = "Head", RageShootAttempts = 1, RagePredict = false, RagePredictMul = 1.2,
+    RageOrbitHeight = 2, RageFireCD = 0.05,
+    VoidSpamEnabled = false, VoidShootMin = 1, VoidShootMax = 1,
+    VoidHideMin = 1, VoidHideMax = 1, VoidHideReload = true,
 
     AntiAimEnabled = false, AntiAimYaw = "jitter", AntiAimPitch = "jitter",
     AntiAimAngle = "none", AntiAimCustomAngle = 0,
@@ -188,12 +169,20 @@ local S = {
     ShowTracer = true, ShowSkeleton = true,
     MaxDistance = 2000, HueSpeed = 0.25,
 
-    TeamCheck = true, HideKey = Enum.KeyCode.RightShift, GuiVisible = true,
-    AntiAFK = true,
+    TeamCheck = true, AntiAFK = true,
+
+    -- v10.4 自動化（移除自動載入參數）
+    AutoExecuteEnabled = true,
+    AutoExecuteDelay = 3,
+    AutoExecuteConfig = "",
+
+    AutoQueueEnabled = false,
+    AutoQueueMode = "1v1",
+    AutoQueueRanked = false,
+    AutoQueueDelay = 2,
 }
 
 local hasMouseMoveRel = type(mousemoverel) == "function"
-print("[v10.2] mousemoverel 支援:", hasMouseMoveRel)
 
 -- ========== 工具 ==========
 local function worldToScreen(pos, cam)
@@ -401,8 +390,7 @@ end)
 
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
-    if not S.SilentEnabled then return end
-    if S.SilentAutoShoot then return end
+    if not S.SilentEnabled or S.SilentAutoShoot then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local target = findSilentTarget()
         if target then pcall(fireSilentAt, target) end
@@ -524,7 +512,7 @@ LP.CharacterRemoving:Connect(function()
     stopBS()
 end)
 
--- ========== Ragebot 全套（v10.2 新增）==========
+-- ========== Ragebot ==========
 local Rage = {
     target = nil, targetPlayer = nil, immune = false, syncing = false, syncConn = nil,
     savedCFrame = nil, serverPos = nil,
@@ -1099,7 +1087,6 @@ if GunModule and GunModule.StartShooting then
         if oldRecoil then self.Info.ShootRecoil = oldRecoil end
         return unpack(result)
     end
-    print("[v10.2] Gun 無散射 / 無後座 / 無冷卻 hook 已安裝")
 end
 
 if GameplayUtility and GameplayUtility.GetSpread then
@@ -1168,8 +1155,7 @@ end
 
 -- ========== 裝置偽裝 ==========
 local DEVICE_CODES = {
-    ["Mobile"] = "Touch", ["Console"] = "Gamepad",
-    ["VR"] = "VR", ["PC"] = "MouseKeyboard",
+    ["Mobile"] = "Touch", ["Console"] = "Gamepad", ["VR"] = "VR", ["PC"] = "MouseKeyboard",
 }
 
 local function applyDeviceSpoof()
@@ -1444,7 +1430,7 @@ local ok = pcall(function()
     loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
 end)
 if not ok then
-    warn("[v10.2] Obsidian 載入失敗")
+    warn("[v10.4] Obsidian 載入失敗")
     return
 end
 local Library = getgenv().Library or getgenv().ObsidianLibrary
@@ -1457,9 +1443,6 @@ getgenv().ThemeManager = ThemeManager
 getgenv().SaveManager  = SaveManager
 _G.ThemeManager = ThemeManager
 _G.SaveManager  = SaveManager
-
-print("[v10.2] ThemeManager:", ThemeManager ~= nil)
-print("[v10.2] SaveManager:", SaveManager ~= nil)
 
 pcall(function()
     if ThemeManager then
@@ -1482,7 +1465,7 @@ if SaveManager then
 end
 
 local Window = Library:CreateWindow({
-    Title = "v3 Hub // RIVALS v10.2",
+    Title = "v3 Hub // RIVALS v10.4",
     Footer = "v3 Hub | Obsidian GUI",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
@@ -1492,114 +1475,60 @@ local VisualsTab = Window:AddTab("Visuals", "eye")
 local MovementTab = Window:AddTab("Movement", "person-standing")
 local GunTab = Window:AddTab("Gun", "crosshair")
 local MiscTab = Window:AddTab("Misc", "circle-ellipsis")
+local AutoTab = Window:AddTab("Auto", "zap")
 local ConfigTab = Window:AddTab("Configs", "save")
 
--- Combat
+-- === Combat ===
 local silentGroup = CombatTab:AddLeftGroupbox("Silent Aim")
-silentGroup:AddToggle("Silent_Enabled", {
-    Text = "Enable Silent Aim", Default = false,
-    Callback = function(v) S.SilentEnabled = v end
-}):AddKeyPicker("Silent_Key", {
-    Text = "Silent Aim", Default = "None", Mode = "Toggle", NoUI = true,
-    SyncToggleState = true, Callback = function(state) S.SilentEnabled = state end
-})
-silentGroup:AddToggle("Silent_AutoShoot", { Text = "Auto Shoot (能打到才開)", Default = false, Callback = function(v) S.SilentAutoShoot = v end })
-silentGroup:AddToggle("Silent_WallCheck", { Text = "牆壁檢測（不穿牆開槍）", Default = true, Callback = function(v) S.SilentWallCheck = v end })
-silentGroup:AddToggle("Silent_360", { Text = "360 度模式（背後也打）", Default = false, Callback = function(v) S.Silent360 = v end })
-silentGroup:AddDropdown("Silent_HitPart", {
-    Text = "Hit Part", Default = "Head",
-    Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"},
-    Callback = function(v) S.SilentHitPart = v end
-})
+silentGroup:AddToggle("Silent_Enabled", { Text = "Enable Silent Aim", Default = false, Callback = function(v) S.SilentEnabled = v end }):AddKeyPicker("Silent_Key", { Text = "Silent Aim", Default = "None", Mode = "Toggle", NoUI = true, SyncToggleState = true, Callback = function(state) S.SilentEnabled = state end })
+silentGroup:AddToggle("Silent_AutoShoot", { Text = "Auto Shoot", Default = false, Callback = function(v) S.SilentAutoShoot = v end })
+silentGroup:AddToggle("Silent_WallCheck", { Text = "Wall Check", Default = true, Callback = function(v) S.SilentWallCheck = v end })
+silentGroup:AddToggle("Silent_360", { Text = "360 Mode", Default = false, Callback = function(v) S.Silent360 = v end })
+silentGroup:AddDropdown("Silent_HitPart", { Text = "Hit Part", Default = "Head", Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"}, Callback = function(v) S.SilentHitPart = v end })
 silentGroup:AddSlider("Silent_FOV", { Text = "FOV Radius", Default = 150, Min = 10, Max = 800, Rounding = 0, Compact = true, Callback = function(v) S.SilentFOV = v end })
 silentGroup:AddSlider("Silent_HitChance", { Text = "Hit Chance %", Default = 100, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) S.SilentHitChance = v end })
 silentGroup:AddToggle("Silent_FollowMuzzle", { Text = "Follow Muzzle", Default = false, Callback = function(v) S.SilentFollowMuzzle = v end })
 
--- ========== Ragebot UI ==========
 local rageGroup = CombatTab:AddLeftGroupbox("Ragebot")
-rageGroup:AddToggle("Rage_Enabled", {
-    Text = "啟用狂暴機器人", Default = false,
-    Callback = function(v)
-        S.RageEnabled = v
-        if not v then rageClearTarget() end
-    end
-}):AddKeyPicker("Rage_Key", {
-    Text = "Ragebot", Default = "None", Mode = "Toggle", NoUI = true,
-    SyncToggleState = true, Callback = function(state)
-        S.RageEnabled = state
-        if not state then rageClearTarget() end
-    end
-})
-rageGroup:AddToggle("Rage_AutoTarget", { Text = "自動索敵", Default = false, Callback = function(v) S.RageAutoTarget = v end })
-rageGroup:AddToggle("Rage_AutoShoot", { Text = "自動開火", Default = true, Callback = function(v) S.RageAutoShoot = v end })
-rageGroup:AddToggle("Rage_Predict", { Text = "預測", Default = false, Callback = function(v) S.RagePredict = v end })
-rageGroup:AddSlider("Rage_PredictMul", { Text = "預測倍率", Default = 1.2, Min = 0.1, Max = 3.0, Rounding = 1, Compact = true, Callback = function(v) S.RagePredictMul = v end })
-rageGroup:AddDropdown("Rage_HitPart", {
-    Text = "命中部位", Default = "Head",
-    Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"},
-    Callback = function(v) S.RageHitPart = v end
-})
-rageGroup:AddSlider("Rage_Attempts", { Text = "開火次數", Default = 1, Min = 1, Max = 3, Rounding = 0, Compact = true, Callback = function(v) S.RageShootAttempts = v end })
-rageGroup:AddSlider("Rage_OrbitH", { Text = "環繞高度", Default = 2, Min = -10, Max = 15, Rounding = 1, Compact = true, Callback = function(v) S.RageOrbitHeight = v end })
-rageGroup:AddSlider("Rage_FireCD", { Text = "開火冷卻", Default = 0.05, Min = 0.01, Max = 0.5, Rounding = 2, Compact = true, Callback = function(v) S.RageFireCD = v end })
-rageGroup:AddButton({
-    Text = "手動鎖定最近敵人",
-    Func = function()
-        local ch = rageNearest()
-        if ch then rageSetTarget(ch); rageStartSync() end
-    end
-})
-rageGroup:AddButton({
-    Text = "解除鎖定",
-    Func = function() rageClearTarget() end
-})
+rageGroup:AddToggle("Rage_Enabled", { Text = "Enable Ragebot", Default = false, Callback = function(v) S.RageEnabled = v if not v then rageClearTarget() end end }):AddKeyPicker("Rage_Key", { Text = "Ragebot", Default = "None", Mode = "Toggle", NoUI = true, SyncToggleState = true, Callback = function(state) S.RageEnabled = state if not state then rageClearTarget() end end })
+rageGroup:AddToggle("Rage_AutoTarget", { Text = "Auto Target", Default = false, Callback = function(v) S.RageAutoTarget = v end })
+rageGroup:AddToggle("Rage_AutoShoot", { Text = "Auto Shoot", Default = true, Callback = function(v) S.RageAutoShoot = v end })
+rageGroup:AddToggle("Rage_Predict", { Text = "Prediction", Default = false, Callback = function(v) S.RagePredict = v end })
+rageGroup:AddSlider("Rage_PredictMul", { Text = "Predict Mult", Default = 1.2, Min = 0.1, Max = 3.0, Rounding = 1, Compact = true, Callback = function(v) S.RagePredictMul = v end })
+rageGroup:AddDropdown("Rage_HitPart", { Text = "Hit Part", Default = "Head", Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"}, Callback = function(v) S.RageHitPart = v end })
+rageGroup:AddSlider("Rage_Attempts", { Text = "Shoot Attempts", Default = 1, Min = 1, Max = 3, Rounding = 0, Compact = true, Callback = function(v) S.RageShootAttempts = v end })
+rageGroup:AddSlider("Rage_OrbitH", { Text = "Orbit Height", Default = 2, Min = -10, Max = 15, Rounding = 1, Compact = true, Callback = function(v) S.RageOrbitHeight = v end })
+rageGroup:AddSlider("Rage_FireCD", { Text = "Fire CD", Default = 0.05, Min = 0.01, Max = 0.5, Rounding = 2, Compact = true, Callback = function(v) S.RageFireCD = v end })
+rageGroup:AddButton({ Text = "手動鎖定最近敵人", Func = function() local ch = rageNearest() if ch then rageSetTarget(ch) rageStartSync() end end })
+rageGroup:AddButton({ Text = "解除鎖定", Func = function() rageClearTarget() end })
 
 local voidGroup = CombatTab:AddLeftGroupbox("Void Spam")
-voidGroup:AddToggle("Void_Enabled", { Text = "啟用虛空連發", Default = false, Callback = function(v)
-    S.VoidSpamEnabled = v
-    if not v then Rage.voidPhase = nil end
-end })
-voidGroup:AddSlider("Void_ShootMin", { Text = "攻擊時間", Default = 1, Min = 0.1, Max = 2, Rounding = 1, Compact = true, Callback = function(v) S.VoidShootMin = v; S.VoidShootMax = v end })
-voidGroup:AddSlider("Void_HideMin", { Text = "躲藏時間", Default = 1, Min = 0.1, Max = 2, Rounding = 1, Compact = true, Callback = function(v) S.VoidHideMin = v; S.VoidHideMax = v end })
-voidGroup:AddToggle("Void_HideReload", { Text = "換彈時躲藏", Default = true, Callback = function(v) S.VoidHideReload = v end })
+voidGroup:AddToggle("Void_Enabled", { Text = "Enable Void Spam", Default = false, Callback = function(v) S.VoidSpamEnabled = v if not v then Rage.voidPhase = nil end end })
+voidGroup:AddSlider("Void_ShootMin", { Text = "Attack Time", Default = 1, Min = 0.1, Max = 2, Rounding = 1, Compact = true, Callback = function(v) S.VoidShootMin = v S.VoidShootMax = v end })
+voidGroup:AddSlider("Void_HideMin", { Text = "Hide Time", Default = 1, Min = 0.1, Max = 2, Rounding = 1, Compact = true, Callback = function(v) S.VoidHideMin = v S.VoidHideMax = v end })
+voidGroup:AddToggle("Void_HideReload", { Text = "Hide on Reload", Default = true, Callback = function(v) S.VoidHideReload = v end })
 
-local aimGroup = CombatTab:AddRightGroupbox("自瞄（模擬滑鼠）")
-aimGroup:AddToggle("Aimbot_Enabled", {
-    Text = "Enable Aimbot", Default = false,
-    Callback = function(v)
-        S.AimEnabled = v
-        if v then S.TeamCheck = true end
-    end
-})
+local aimGroup = CombatTab:AddRightGroupbox("Aimbot (Mouse)")
+aimGroup:AddToggle("Aimbot_Enabled", { Text = "Enable Aimbot", Default = false, Callback = function(v) S.AimEnabled = v if v then S.TeamCheck = true end end })
 aimGroup:AddDropdown("Aimbot_HitPart", { Text = "Hit Part", Default = "Head", Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"}, Callback = function(v) S.AimHitPart = v end })
 aimGroup:AddSlider("Aimbot_FOV", { Text = "FOV Radius", Default = 300, Min = 10, Max = 1000, Rounding = 0, Compact = true, Callback = function(v) S.AimFOV = v end })
-aimGroup:AddToggle("Aimbot_WallCheck", { Text = "Wall Check（牆檢）", Default = false, Callback = function(v) S.AimWallCheck = v end })
-aimGroup:AddSlider("Aimbot_Sens", { Text = "滑鼠靈敏度", Default = 1.0, Min = 0.1, Max = 5, Rounding = 2, Compact = true, Callback = function(v) S.MouseSens = v end })
-aimGroup:AddSlider("Aimbot_Smooth", { Text = "滑鼠平滑", Default = 0.5, Min = 0, Max = 0.95, Rounding = 2, Compact = true, Callback = function(v) S.MouseSmooth = v end })
-aimGroup:AddSlider("Aimbot_Deadzone", { Text = "滑鼠死區", Default = 2, Min = 0, Max = 20, Rounding = 0, Compact = true, Callback = function(v) S.MouseDeadzone = v end })
-aimGroup:AddSlider("Aimbot_MaxStep", { Text = "單幀上限", Default = 200, Min = 10, Max = 500, Rounding = 0, Compact = true, Callback = function(v) S.MouseMaxStep = v end })
-aimGroup:AddSlider("Aimbot_Stuck", { Text = "卡住解鎖秒", Default = 3, Min = 0.5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.AimStuckTime = v end })
+aimGroup:AddToggle("Aimbot_WallCheck", { Text = "Wall Check", Default = false, Callback = function(v) S.AimWallCheck = v end })
+aimGroup:AddSlider("Aimbot_Sens", { Text = "Sensitivity", Default = 1.0, Min = 0.1, Max = 5, Rounding = 2, Compact = true, Callback = function(v) S.MouseSens = v end })
+aimGroup:AddSlider("Aimbot_Smooth", { Text = "Smoothness", Default = 0.5, Min = 0, Max = 0.95, Rounding = 2, Compact = true, Callback = function(v) S.MouseSmooth = v end })
+aimGroup:AddSlider("Aimbot_Deadzone", { Text = "Deadzone", Default = 2, Min = 0, Max = 20, Rounding = 0, Compact = true, Callback = function(v) S.MouseDeadzone = v end })
+aimGroup:AddSlider("Aimbot_MaxStep", { Text = "Max Step", Default = 200, Min = 10, Max = 500, Rounding = 0, Compact = true, Callback = function(v) S.MouseMaxStep = v end })
+aimGroup:AddSlider("Aimbot_Stuck", { Text = "Stuck Unlock", Default = 3, Min = 0.5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.AimStuckTime = v end })
 
-local backGroup = CombatTab:AddRightGroupbox("瞬移繞圈（Orbit）")
-backGroup:AddToggle("Backshoot_Enabled", {
-    Text = "啟用繞圈（繞敵人轉）",
-    Default = false,
-    Callback = function(v)
-        S.BackshootEnabled = v
-        if v then startContinuousBackshoot() else releaseBackshoot() end
-    end
-})
-backGroup:AddSlider("Orbit_Delay", { Text = "延遲（秒，鎖定後才開始繞）", Default = 0, Min = 0, Max = 5, Rounding = 2, Compact = true, Callback = function(v) S.OrbitDelay = v end })
-backGroup:AddSlider("Orbit_Speed", { Text = "繞圈速度（圈/秒）", Default = 3, Min = 0.5, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitSpeed = v end })
-backGroup:AddSlider("Orbit_Radius", { Text = "繞圈半徑（格）", Default = 5, Min = 1, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitRadius = v end })
-backGroup:AddSlider("Orbit_Height", { Text = "繞圈高度", Default = 1, Min = -5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.OrbitHeight = v end })
-backGroup:AddToggle("Orbit_DeathRespawn", { Text = "死亡復活後自動重啟", Default = true, Callback = function(v) S.OrbitDeathRespawn = v end })
+local backGroup = CombatTab:AddRightGroupbox("Orbit")
+backGroup:AddToggle("Backshoot_Enabled", { Text = "Enable Orbit", Default = false, Callback = function(v) S.BackshootEnabled = v if v then startContinuousBackshoot() else releaseBackshoot() end end })
+backGroup:AddSlider("Orbit_Delay", { Text = "Delay", Default = 0, Min = 0, Max = 5, Rounding = 2, Compact = true, Callback = function(v) S.OrbitDelay = v end })
+backGroup:AddSlider("Orbit_Speed", { Text = "Speed", Default = 3, Min = 0.5, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitSpeed = v end })
+backGroup:AddSlider("Orbit_Radius", { Text = "Radius", Default = 5, Min = 1, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitRadius = v end })
+backGroup:AddSlider("Orbit_Height", { Text = "Height", Default = 1, Min = -5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.OrbitHeight = v end })
+backGroup:AddToggle("Orbit_DeathRespawn", { Text = "Auto Restart on Respawn", Default = true, Callback = function(v) S.OrbitDeathRespawn = v end })
 
-local antiGroup = CombatTab:AddRightGroupbox("反瞄準（Anti-Aim）")
-antiGroup:AddToggle("AntiAim_Enabled", {
-    Text = "啟用反瞄準", Default = false,
-    Callback = function(v) S.AntiAimEnabled = v; updateAntiAim() end
-})
+local antiGroup = CombatTab:AddRightGroupbox("Anti-Aim")
+antiGroup:AddToggle("AntiAim_Enabled", { Text = "Enable Anti-Aim", Default = false, Callback = function(v) S.AntiAimEnabled = v updateAntiAim() end })
 antiGroup:AddDropdown("AntiAim_Yaw", { Text = "Yaw", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimYaw = v end })
 antiGroup:AddDropdown("AntiAim_Pitch", { Text = "Pitch", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimPitch = v end })
 antiGroup:AddDropdown("AntiAim_Angle", { Text = "Angle", Default = "none", Values = {"none","tilt 45","tilt 90","upside down","custom"}, Callback = function(v) S.AntiAimAngle = v end })
@@ -1610,24 +1539,24 @@ antiGroup:AddSlider("AntiAim_MinAngle", { Text = "Min Angle", Default = 30, Min 
 antiGroup:AddSlider("AntiAim_MaxAngle", { Text = "Max Angle", Default = 60, Min = 1, Max = 180, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMaxAngle = v end })
 antiGroup:AddToggle("AntiAim_RandomAngle", { Text = "Random Angle", Default = false, Callback = function(v) S.AntiAimRandomAngle = v end })
 
--- Visuals
+-- === Visuals ===
 local espGroup = VisualsTab:AddLeftGroupbox("ESP")
-espGroup:AddToggle("ESP_Enabled", { Text = "ESP 開關", Default = true, Callback = function(v) S.ESPEnabled = v end })
-espGroup:AddToggle("ESP_Name", { Text = "名字", Default = true, Callback = function(v) S.ShowName = v end })
-espGroup:AddToggle("ESP_Distance", { Text = "距離", Default = true, Callback = function(v) S.ShowDistance = v end })
-espGroup:AddToggle("ESP_Health", { Text = "血量", Default = true, Callback = function(v) S.ShowHealth = v end })
-espGroup:AddToggle("ESP_Tracer", { Text = "追蹤線", Default = true, Callback = function(v) S.ShowTracer = v end })
-espGroup:AddToggle("ESP_Skeleton", { Text = "骨架", Default = true, Callback = function(v) S.ShowSkeleton = v end })
-espGroup:AddSlider("ESP_MaxDist", { Text = "最大距離", Default = 2000, Min = 100, Max = 5000, Rounding = 0, Compact = true, Callback = function(v) S.MaxDistance = v end })
-espGroup:AddSlider("ESP_HueSpeed", { Text = "彩虹速度", Default = 0.25, Min = 0, Max = 2, Rounding = 2, Compact = true, Callback = function(v) S.HueSpeed = v end })
+espGroup:AddToggle("ESP_Enabled", { Text = "ESP", Default = true, Callback = function(v) S.ESPEnabled = v end })
+espGroup:AddToggle("ESP_Name", { Text = "Name", Default = true, Callback = function(v) S.ShowName = v end })
+espGroup:AddToggle("ESP_Distance", { Text = "Distance", Default = true, Callback = function(v) S.ShowDistance = v end })
+espGroup:AddToggle("ESP_Health", { Text = "Health", Default = true, Callback = function(v) S.ShowHealth = v end })
+espGroup:AddToggle("ESP_Tracer", { Text = "Tracer", Default = true, Callback = function(v) S.ShowTracer = v end })
+espGroup:AddToggle("ESP_Skeleton", { Text = "Skeleton", Default = true, Callback = function(v) S.ShowSkeleton = v end })
+espGroup:AddSlider("ESP_MaxDist", { Text = "Max Distance", Default = 2000, Min = 100, Max = 5000, Rounding = 0, Compact = true, Callback = function(v) S.MaxDistance = v end })
+espGroup:AddSlider("ESP_HueSpeed", { Text = "Rainbow Speed", Default = 0.25, Min = 0, Max = 2, Rounding = 2, Compact = true, Callback = function(v) S.HueSpeed = v end })
 
 local crossGroup = VisualsTab:AddRightGroupbox("Crosshair")
-crossGroup:AddToggle("Crosshair_Enabled", { Text = "Enable Crosshair", Default = false, Callback = function(v) S.CrosshairEnabled = v end }):AddColorPicker("Crosshair_Color", { Default = Color3.fromRGB(0, 200, 255), Title = "Color", Callback = function(v) S.CrosshairColor = v end })
+crossGroup:AddToggle("Crosshair_Enabled", { Text = "Crosshair", Default = false, Callback = function(v) S.CrosshairEnabled = v end }):AddColorPicker("Crosshair_Color", { Default = Color3.fromRGB(0, 200, 255), Title = "Color", Callback = function(v) S.CrosshairColor = v end })
 crossGroup:AddToggle("Crosshair_ShowLines", { Text = "Show Lines", Default = true, Callback = function(v) S.CrosshairShowLines = v end })
 crossGroup:AddSlider("Crosshair_Spin", { Text = "Spin Speed", Default = 150, Min = 0, Max = 340, Rounding = 0, Compact = true, Callback = function(v) S.CrosshairSpinSpeed = v end })
 crossGroup:AddDropdown("Crosshair_Mode", { Text = "Mode", Default = "static", Values = {"static","follow muzzle"}, Callback = function(v) S.CrosshairMode = v end })
 
--- Movement
+-- === Movement ===
 local moveGroup = MovementTab:AddLeftGroupbox("Movement")
 moveGroup:AddToggle("Move_InfJump", { Text = "Infinite Jump", Default = false, Callback = function(v) S.InfJump = v end })
 moveGroup:AddToggle("Move_Noclip", { Text = "Noclip", Default = false, Callback = function(v) S.Noclip = v end })
@@ -1636,24 +1565,24 @@ moveGroup:AddSlider("Move_WalkSpeed", { Text = "WalkSpeed", Default = 16, Min = 
 moveGroup:AddSlider("Move_JumpPower", { Text = "JumpPower", Default = 50, Min = 50, Max = 300, Rounding = 0, Compact = true, Callback = function(v) S.JumpPower = v end })
 moveGroup:AddSlider("Move_FlySpeed", { Text = "Fly Speed", Default = 50, Min = 16, Max = 750, Rounding = 0, Compact = true, Callback = function(v) S.FlySpeed = v end })
 
--- Gun
+-- === Gun ===
 local gunGroup = GunTab:AddLeftGroupbox("Gun Mods")
 gunGroup:AddToggle("Gun_AntiKatana", { Text = "Anti Katana", Default = false, Callback = function(v) S.AntiKatana = v end })
 gunGroup:AddToggle("Gun_NoCooldown", { Text = "No Cooldown", Default = false, Callback = function(v) S.NoCooldown = v end })
-gunGroup:AddToggle("Gun_NoSpread", { Text = "No Spread (無散射)", Default = false, Callback = function(v) S.NoSpread = v end })
+gunGroup:AddToggle("Gun_NoSpread", { Text = "No Spread", Default = false, Callback = function(v) S.NoSpread = v end })
 gunGroup:AddToggle("Gun_NoRecoil", { Text = "No Recoil", Default = false, Callback = function(v) S.NoRecoil = v end })
 gunGroup:AddToggle("Gun_MaxAccuracy", { Text = "Max Accuracy", Default = false, Callback = function(v) S.MaxAccuracy = v end })
 gunGroup:AddToggle("Gun_RapidAttack", { Text = "Rapid Attack", Default = false, Callback = function(v) S.RapidAttack = v end })
 gunGroup:AddToggle("Gun_NoMuzzleFlash", { Text = "No Muzzle Flash", Default = false, Callback = function(v) S.NoMuzzleFlash = v updateMuzzleFlash() end })
 
--- Misc
+-- === Misc ===
 local deviceGroup = MiscTab:AddLeftGroupbox("Device Spoof")
 deviceGroup:AddToggle("Device_Spoof", { Text = "Enable", Default = false, Callback = function(v) S.DeviceSpoof = v applyDeviceSpoof() end })
 deviceGroup:AddDropdown("Device_Type", { Text = "Type", Default = "PC", Values = {"PC","Console","Mobile","VR"}, Callback = function(v) S.DeviceType = v if S.DeviceSpoof then applyDeviceSpoof() end end })
 
 local miscGroup = MiscTab:AddRightGroupbox("Misc")
-miscGroup:AddToggle("Misc_TeamCheck", { Text = "隊伍檢測（開啟自瞄時自動啟用）", Default = true, Callback = function(v) S.TeamCheck = v end })
-miscGroup:AddToggle("Misc_AntiAFK", { Text = "反 AFK", Default = true, Callback = function(v) S.AntiAFK = v end })
+miscGroup:AddToggle("Misc_TeamCheck", { Text = "Team Check", Default = true, Callback = function(v) S.TeamCheck = v end })
+miscGroup:AddToggle("Misc_AntiAFK", { Text = "Anti AFK", Default = true, Callback = function(v) S.AntiAFK = v end })
 miscGroup:AddButton({ Text = "卸載腳本", Func = function()
     pcall(function() RunService:UnbindFromRenderStep(AIMBOT_BIND) end)
     if antiAimConn then antiAimConn:Disconnect() end
@@ -1666,6 +1595,126 @@ miscGroup:AddButton({ Text = "卸載腳本", Func = function()
     if muzzleFlashConn then muzzleFlashConn:Disconnect() end
     Library:Unload()
 end })
+
+-- ========== Auto Tab ==========
+local autoExecGroup = AutoTab:AddLeftGroupbox("自動執行腳本")
+
+autoExecGroup:AddToggle("AutoExec_Enabled", {
+    Text = "啟用自動執行",
+    Default = true,
+    Callback = function(v) S.AutoExecuteEnabled = v end
+})
+
+autoExecGroup:AddSlider("AutoExec_Delay", {
+    Text = "延遲（秒）",
+    Default = 3, Min = 0, Max = 30, Rounding = 1, Compact = true,
+    Callback = function(v) S.AutoExecuteDelay = v end
+})
+
+autoExecGroup:AddInput("AutoExec_ConfigName", {
+    Text = "要載入的 Config 名稱",
+    Default = "",
+    Finished = true,
+    Placeholder = "例如 default",
+    Callback = function(v) S.AutoExecuteConfig = v or "" end
+})
+
+local function runAutoExecute()
+    if not S.AutoExecuteEnabled then return end
+    task.wait(S.AutoExecuteDelay)
+    print("[v10.4] 自動執行觸發")
+    if SaveManager and S.AutoExecuteConfig ~= "" then
+        pcall(function() SaveManager:Load(S.AutoExecuteConfig) end)
+    end
+    pcall(function()
+        if getgenv().SyncAfterConfigLoad then
+            getgenv().SyncAfterConfigLoad()
+        end
+    end)
+end
+
+task.spawn(runAutoExecute)
+
+local autoQueueGroup = AutoTab:AddLeftGroupbox("自動開啟 1v1 排隊")
+
+autoQueueGroup:AddToggle("AutoQueue_Enabled", {
+    Text = "啟用自動排隊",
+    Default = false,
+    Callback = function(v) S.AutoQueueEnabled = v end
+})
+
+autoQueueGroup:AddDropdown("AutoQueue_Mode", {
+    Text = "模式",
+    Default = "1v1",
+    Values = {"1v1","2v2","3v3","4v4","5v5"},
+    Callback = function(v) S.AutoQueueMode = v end
+})
+
+autoQueueGroup:AddToggle("AutoQueue_Ranked", {
+    Text = "排名模式",
+    Default = false,
+    Callback = function(v) S.AutoQueueRanked = v end
+})
+
+autoQueueGroup:AddSlider("AutoQueue_Delay", {
+    Text = "延遲（秒）",
+    Default = 2, Min = 0, Max = 30, Rounding = 1, Compact = true,
+    Callback = function(v) S.AutoQueueDelay = v end
+})
+
+local autoQueueThread = nil
+
+local function autoQueueStop()
+    if autoQueueThread then autoQueueThread = nil end
+end
+
+local function autoQueueStart()
+    autoQueueStop()
+    autoQueueThread = task.spawn(function()
+        task.wait(S.AutoQueueDelay)
+        while S.AutoQueueEnabled and task.wait(1) do
+            local success, result = pcall(function()
+                local storage = game:GetService("ReplicatedStorage")
+                local remotes = storage:WaitForChild("Remotes")
+                local matchmaking = remotes:WaitForChild("Matchmaking")
+                local joinqueue = matchmaking:WaitForChild("JoinQueue")
+
+                if S.AutoQueueRanked then
+                    return joinqueue:InvokeServer(S.AutoQueueMode, true)
+                else
+                    return joinqueue:InvokeServer(S.AutoQueueMode)
+                end
+            end)
+
+            if not success and not string.find(tostring(result):lower(), "already in queue") then
+                autoQueueThread = nil
+                break
+            end
+        end
+    end)
+end
+
+autoQueueGroup:AddButton({
+    Text = "立即排隊",
+    Func = function()
+        if S.AutoQueueEnabled then autoQueueStart() end
+    end
+})
+
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if S.AutoQueueEnabled and not autoQueueThread then
+            autoQueueStart()
+        elseif not S.AutoQueueEnabled and autoQueueThread then
+            autoQueueStop()
+        end
+    end
+end)
+
+LP.CharacterRemoving:Connect(function()
+    autoQueueStop()
+end)
 
 -- SaveManager
 if SaveManager then
@@ -1744,5 +1793,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "v3 Hub", Description = "v10.2 Ragebot 已加入", Time = 4 })
-print("[v10.2] 完整載入完成")
+Library:Notify({ Title = "v3 Hub", Description = "v10.4 自動載入參數已移除", Time = 4 })
+print("[v10.4] 完整載入完成")
