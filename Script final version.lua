@@ -1,5 +1,5 @@
 -- ============================================================
--- v3 Hub // RIVALS 整合版
+-- v3 Hub // RIVALS
 -- ============================================================
 
 -- ========== 反封號 ==========
@@ -17,7 +17,6 @@ local RunService = game:GetService("RunService")
 local W = game:GetService("Workspace")
 local C = W.CurrentCamera
 local LP = Players.LocalPlayer
-local TweenService = game:GetService("TweenService")
 
 if hookmetamethod and getrawmetatable and setreadonly then
     local mt = getrawmetatable(game)
@@ -104,45 +103,54 @@ local FighterRemote = Replication and Replication:FindFirstChild("Fighter")
 local UseItem = FighterRemote and FighterRemote:FindFirstChild("UseItem")
 local SetControls = FighterRemote and FighterRemote:FindFirstChild("SetControls")
 
-print("[v3 Hub] 模組載入完成")
+print("[v3 Hub] Utility:", Utility ~= nil, "| EnumLibrary:", EnumLibrary ~= nil)
+print("[v3 Hub] Gun:", GunModule ~= nil, "| Melee:", MeleeModule ~= nil)
+print("[v3 Hub] UseItem:", UseItem ~= nil, "| SetControls:", SetControls ~= nil)
 
 -- ========== 設定 ==========
 local S = {
     SilentEnabled = false, SilentHitPart = "Head", SilentHitChance = 100, SilentFOV = 150,
     SilentAutoShoot = false, SilentFollowMuzzle = false, SilentWallCheck = true,
     Silent360 = false,
+
     BackshootEnabled = false,
     OrbitSpeed = 3,
     OrbitRadius = 5,
     OrbitHeight = 1,
-    TeleportDelay = 0.5,
-    PersistAfterRespawn = true,
+    OrbitDelay = 0,          -- 新增：繞圈啟動延遲（秒）
+    OrbitDeathRespawn = true, -- 新增：死亡復活自動重啟
+
     AntiAimEnabled = false, AntiAimYaw = "jitter", AntiAimPitch = "jitter",
     AntiAimAngle = "none", AntiAimCustomAngle = 0,
     AntiAimMinSpeed = 10, AntiAimMaxSpeed = 20,
     AntiAimMinAngle = 30, AntiAimMaxAngle = 60,
     AntiAimRandomAngle = false,
+
     AimEnabled = false, AimHitPart = "Head", AimFOV = 300, AimWallCheck = false,
     MouseAim = true, MouseSens = 1.0, MouseDeadzone = 2,
     MouseMaxStep = 200, MouseSmooth = 0.5, AimStuckTime = 3,
+
     CrosshairEnabled = false, CrosshairColor = Color3.fromRGB(0, 200, 255),
     CrosshairShowLines = true, CrosshairSpinSpeed = 150, CrosshairMode = "static",
+
     InfJump = false, JumpPower = 50, WalkSpeed = 16,
     FlyEnabled = false, FlySpeed = 50, Noclip = false,
+
     AntiKatana = false, NoCooldown = false, NoSpread = false, NoRecoil = false,
     MaxAccuracy = false, RapidAttack = false, NoMuzzleFlash = false,
+
     DeviceSpoof = false, DeviceType = "PC",
+
     ESPEnabled = true, ShowName = true, ShowDistance = true, ShowHealth = true,
     ShowTracer = true, ShowSkeleton = true,
     MaxDistance = 2000, HueSpeed = 0.25,
-    TeamCheck = true, AntiAFK = true,
-    GuiAccent = Color3.fromRGB(0, 200, 255),
-    GuiAccent2 = Color3.fromRGB(160, 60, 255),
-    GuiPulse = true,
-    GuiGlow = true,
+
+    TeamCheck = true, HideKey = Enum.KeyCode.RightShift, GuiVisible = true,
+    AntiAFK = true,
 }
 
 local hasMouseMoveRel = type(mousemoverel) == "function"
+print("[v3 Hub] mousemoverel 支援:", hasMouseMoveRel)
 
 -- ========== 工具 ==========
 local function worldToScreen(pos, cam)
@@ -359,17 +367,16 @@ UIS.InputBegan:Connect(function(input, gpe)
     if S.SilentAutoShoot then return end
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         local target = findSilentTarget()
-        if target then pcall(fireSilentAt, target) end
+        if target then
+            pcall(fireSilentAt, target)
+        end
     end
 end)
 
--- ============================================================
--- 瞬移繞圈（延遲 + 復活持續）
--- ============================================================
-local backshoot = { connection = nil, target = nil, origCFrame = nil }
+-- ========== 瞬移繞圈（含延遲 + 死亡復活保持）==========
+local backshoot = { connection = nil, target = nil, origCFrame = nil, armedAt = 0 }
 local backshootMonitorConn = nil
 local orbit = { angle = 0 }
-local teleportState = { lastTeleport = 0, characterConn = nil }
 
 local function closestPlayerBS()
     local best, bestD = nil, math.huge
@@ -390,14 +397,13 @@ local function backshootLoop()
     if backshoot.connection then backshoot.connection:Disconnect() end
     backshoot.connection = RunService.Heartbeat:Connect(function(dt)
         if not S.BackshootEnabled then return end
+        -- 延遲：目標鎖定後先等 OrbitDelay 秒才開始繞
+        if tick() - backshoot.armedAt < S.OrbitDelay then return end
         local myChar = LP.Character
         if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
         if not backshoot.target then return end
         local tr = backshoot.target:FindFirstChild("HumanoidRootPart")
         if not tr then return end
-        local now = tick()
-        if now - teleportState.lastTeleport < S.TeleportDelay then return end
-        teleportState.lastTeleport = now
         orbit.angle = orbit.angle + S.OrbitSpeed * dt * math.pi * 2
         if orbit.angle > math.pi * 2 then orbit.angle = orbit.angle - math.pi * 2 end
         local offset = Vector3.new(
@@ -420,24 +426,28 @@ local function startContinuousBackshoot()
         if not S.BackshootEnabled then return end
         local mc = LP.Character
         if not mc or not mc:FindFirstChild("HumanoidRootPart") then return end
+
+        -- 目標死了就清掉
         if backshoot.target then
             local hum = backshoot.target:FindFirstChild("Humanoid")
             if not hum or hum.Health <= 0 or not backshoot.target.Parent then
                 if backshoot.origCFrame then
-                    mc.HumanoidRootPart.CFrame = backshoot.origCFrame
+                    pcall(function() mc.HumanoidRootPart.CFrame = backshoot.origCFrame end)
                 end
                 backshoot.target = nil
                 stopBS()
                 backshoot.origCFrame = nil
             end
         end
+
+        -- 沒目標就找最近的，並記錄武裝時間
         if not backshoot.target then
             local target = closestPlayerBS()
             if target then
                 backshoot.target = target
                 backshoot.origCFrame = mc.HumanoidRootPart.CFrame
                 orbit.angle = 0
-                teleportState.lastTeleport = 0
+                backshoot.armedAt = tick()
                 backshootLoop()
             end
         end
@@ -449,7 +459,7 @@ local function releaseBackshoot()
     local mc = LP.Character
     if backshoot.target then
         if mc and mc:FindFirstChild("HumanoidRootPart") and backshoot.origCFrame then
-            mc.HumanoidRootPart.CFrame = backshoot.origCFrame
+            pcall(function() mc.HumanoidRootPart.CFrame = backshoot.origCFrame end)
         end
         backshoot.target = nil
         stopBS()
@@ -457,36 +467,22 @@ local function releaseBackshoot()
     end
 end
 
-local function bindRespawnPersist()
-    if teleportState.characterConn then teleportState.characterConn:Disconnect() end
-    teleportState.characterConn = LP.CharacterAdded:Connect(function(char)
-        if not S.BackshootEnabled or not S.PersistAfterRespawn then return end
-        task.wait(1.5)
-        if not S.BackshootEnabled then return end
-        backshoot.target = nil
-        backshoot.origCFrame = nil
-        stopBS()
-        local newChar = LP.Character
-        if not newChar or not newChar:FindFirstChild("HumanoidRootPart") then return end
-        local target = closestPlayerBS()
-        if target then
-            backshoot.target = target
-            backshoot.origCFrame = newChar.HumanoidRootPart.CFrame
-            orbit.angle = 0
-            teleportState.lastTeleport = 0
-            backshootLoop()
-        end
-        startContinuousBackshoot()
-    end)
-end
-bindRespawnPersist()
+-- 角色重生：如果繞圈開著，自動重啟
+LP.CharacterAdded:Connect(function(char)
+    task.wait(1.5)
+    if S.BackshootEnabled then
+        task.wait(S.OrbitDelay)
+        pcall(startContinuousBackshoot)
+        print("[v3 Hub] 角色重生，繞圈自動重啟")
+    end
+end)
 
 LP.CharacterRemoving:Connect(function()
-    if S.PersistAfterRespawn and S.BackshootEnabled then
-        stopBS()
-    else
-        releaseBackshoot()
-    end
+    -- 只清連線，不清 S.BackshootEnabled（保留開關，重生後自動接回）
+    if backshootMonitorConn then backshootMonitorConn:Disconnect(); backshootMonitorConn = nil end
+    if backshoot.connection then backshoot.connection:Disconnect(); backshoot.connection = nil end
+    backshoot.target = nil
+    backshoot.origCFrame = nil
 end)
 
 -- ========== 反瞄準 ==========
@@ -652,7 +648,7 @@ local function findNearestAny()
     return best
 end
 
-local AIMBOT_BIND = "v3HubMouseAim"
+local AIMBOT_BIND = "AxiomMouseAim"
 RunService:BindToRenderStep(AIMBOT_BIND, 201, function(dt)
     if not S.AimEnabled then return end
     if not S.MouseAim then return end
@@ -824,6 +820,7 @@ if GunModule and GunModule.StartShooting then
         if oldRecoil then self.Info.ShootRecoil = oldRecoil end
         return unpack(result)
     end
+    print("[v3 Hub] Gun 無散射 / 無後座 / 無冷卻 hook 已安裝")
 end
 
 if GameplayUtility and GameplayUtility.GetSpread then
@@ -834,6 +831,7 @@ if GameplayUtility and GameplayUtility.GetSpread then
         end
         return origSpread(self, aimMultiplier, isAiming, isCrouching, pelletIndex, totalPellets, consistent)
     end
+    print("[v3 Hub] Gun GetSpread hook 已安裝")
 end
 
 if MeleeModule and MeleeModule.StartShooting then
@@ -848,6 +846,7 @@ if MeleeModule and MeleeModule.StartShooting then
         if S.RapidAttack and oldCD then self.Info.AttackCooldown = oldCD end
         return unpack(result)
     end
+    print("[v3 Hub] Melee RapidAttack hook 已安裝")
 end
 
 local muzzleFlashConn = nil
@@ -1164,45 +1163,26 @@ local function updateESP()
     end
 end
 
--- ============================================================
--- ========== Obsidian GUI（v3 Hub 修復版）==========
--- ============================================================
+-- ========== Obsidian GUI ==========
 local ObsidianRepo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
-
--- 保險：先確認 Library 存在，避免被 addon 蓋掉
-if not getgenv().Library then
-    local ok = pcall(function()
-        loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
-    end)
-    if not ok then
-        warn("[v3 Hub] Obsidian Library 載入失敗")
-        return
-    end
-end
-
-local Library = getgenv().Library or getgenv().ObsidianLibrary
-if not Library then
-    warn("[v3 Hub] Library 為 nil，中止")
+local ok = pcall(function()
+    loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
+end)
+if not ok then
+    warn("[v3 Hub] Obsidian 載入失敗")
     return
 end
+local Library = getgenv().Library or getgenv().ObsidianLibrary
+if not Library then return end
 
--- addon：直接全域賦值（Grief.cc 寫法）
-pcall(function()
-    ThemeManager = loadstring(game:HttpGet(ObsidianRepo .. "addons/ThemeManager.lua"))()
-    SaveManager  = loadstring(game:HttpGet(ObsidianRepo .. "addons/SaveManager.lua"))()
-end)
+ThemeManager = loadstring(game:HttpGet(ObsidianRepo .. "addons/ThemeManager.lua"))()
+SaveManager  = loadstring(game:HttpGet(ObsidianRepo .. "addons/SaveManager.lua"))()
 
--- 保險：addon 若回傳 nil，嘗試用 getgenv 拿
-if not ThemeManager then ThemeManager = getgenv().ThemeManager end
-if not SaveManager  then SaveManager  = getgenv().SaveManager  end
-
--- 同步到 getgenv 跟 _G
 getgenv().ThemeManager = ThemeManager
 getgenv().SaveManager  = SaveManager
 _G.ThemeManager = ThemeManager
 _G.SaveManager  = SaveManager
 
-print("[v3 Hub] Library:", Library ~= nil)
 print("[v3 Hub] ThemeManager:", ThemeManager ~= nil)
 print("[v3 Hub] SaveManager:", SaveManager ~= nil)
 
@@ -1210,8 +1190,8 @@ pcall(function()
     if ThemeManager then
         ThemeManager:SetLibrary(Library)
         ThemeManager:SetDefaultTheme({
-            FontColor = "ffffff", MainColor = "14141e", AccentColor = "00c8ff",
-            BackgroundColor = "0a0a12", OutlineColor = "1e1e2d", FontFace = "Code", BackgroundImage = ""
+            FontColor = "ffffff", MainColor = "232330", AccentColor = "426e87",
+            BackgroundColor = "1d1b26", OutlineColor = "27232f", FontFace = "Code", BackgroundImage = ""
         })
     end
 end)
@@ -1228,68 +1208,10 @@ end
 
 local Window = Library:CreateWindow({
     Title = "v3 Hub // RIVALS",
-    Footer = "v3 Hub | 酷炫版",
+    Footer = "v3 Hub | Obsidian GUI",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
 
--- 保險：Holder 取用
-pcall(function()
-    Window.Holder = Window.Holder or Window.MainFrame or { Visible = true }
-end)
-
--- ========== 酷炫外觀（放到 Window 建立後）==========
-pcall(function()
-    local holder = Window.Holder
-    if holder and holder.Parent then
-        local grad = Instance.new("UIGradient")
-        grad.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 30)),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(30, 15, 50)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 25, 45)),
-        })
-        grad.Rotation = 45
-        grad.Parent = holder
-
-        local neonLine = Instance.new("Frame")
-        neonLine.Name = "v3NeonLine"
-        neonLine.BackgroundColor3 = S.GuiAccent
-        neonLine.BorderSizePixel = 0
-        neonLine.Size = UDim2.new(1, 0, 0, 2)
-        neonLine.Position = UDim2.new(0, 0, 0, 0)
-        neonLine.ZIndex = 999
-        neonLine.Parent = holder
-
-        local neonGrad = Instance.new("UIGradient")
-        neonGrad.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, S.GuiAccent),
-            ColorSequenceKeypoint.new(0.5, S.GuiAccent2),
-            ColorSequenceKeypoint.new(1, S.GuiAccent),
-        })
-        neonGrad.Parent = neonLine
-
-        local neonLine2 = neonLine:Clone()
-        neonLine2.Name = "v3NeonLine2"
-        neonLine2.Position = UDim2.new(0, 0, 1, -2)
-        neonLine2.Parent = holder
-
-        if S.GuiPulse then
-            task.spawn(function()
-                local hue = 0
-                while holder and holder.Parent do
-                    hue = (hue + 0.005) % 1
-                    local c = Color3.fromHSV(hue, 0.8, 1)
-                    pcall(function()
-                        neonLine.BackgroundColor3 = c
-                        neonLine2.BackgroundColor3 = c
-                    end)
-                    task.wait(0.05)
-                end
-            end)
-        end
-    end
-end)
-
--- ========== 分頁 ==========
 local CombatTab = Window:AddTab("Combat", "swords")
 local VisualsTab = Window:AddTab("Visuals", "eye")
 local MovementTab = Window:AddTab("Movement", "person-standing")
@@ -1306,9 +1228,9 @@ silentGroup:AddToggle("Silent_Enabled", {
     Text = "Silent Aim", Default = "None", Mode = "Toggle", NoUI = true,
     SyncToggleState = true, Callback = function(state) S.SilentEnabled = state end
 })
-silentGroup:AddToggle("Silent_AutoShoot", { Text = "Auto Shoot", Default = false, Callback = function(v) S.SilentAutoShoot = v end })
-silentGroup:AddToggle("Silent_WallCheck", { Text = "牆壁檢測", Default = true, Callback = function(v) S.SilentWallCheck = v end })
-silentGroup:AddToggle("Silent_360", { Text = "360 度模式", Default = false, Callback = function(v) S.Silent360 = v end })
+silentGroup:AddToggle("Silent_AutoShoot", { Text = "Auto Shoot (能打到才開)", Default = false, Callback = function(v) S.SilentAutoShoot = v end })
+silentGroup:AddToggle("Silent_WallCheck", { Text = "牆壁檢測（不穿牆開槍）", Default = true, Callback = function(v) S.SilentWallCheck = v end })
+silentGroup:AddToggle("Silent_360", { Text = "360 度模式（背後也打）", Default = false, Callback = function(v) S.Silent360 = v end })
 silentGroup:AddDropdown("Silent_HitPart", {
     Text = "Hit Part", Default = "Head",
     Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"},
@@ -1328,7 +1250,7 @@ aimGroup:AddToggle("Aimbot_Enabled", {
 })
 aimGroup:AddDropdown("Aimbot_HitPart", { Text = "Hit Part", Default = "Head", Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"}, Callback = function(v) S.AimHitPart = v end })
 aimGroup:AddSlider("Aimbot_FOV", { Text = "FOV Radius", Default = 300, Min = 10, Max = 1000, Rounding = 0, Compact = true, Callback = function(v) S.AimFOV = v end })
-aimGroup:AddToggle("Aimbot_WallCheck", { Text = "Wall Check", Default = false, Callback = function(v) S.AimWallCheck = v end })
+aimGroup:AddToggle("Aimbot_WallCheck", { Text = "Wall Check（牆檢）", Default = false, Callback = function(v) S.AimWallCheck = v end })
 aimGroup:AddSlider("Aimbot_Sens", { Text = "滑鼠靈敏度", Default = 1.0, Min = 0.1, Max = 5, Rounding = 2, Compact = true, Callback = function(v) S.MouseSens = v end })
 aimGroup:AddSlider("Aimbot_Smooth", { Text = "滑鼠平滑", Default = 0.5, Min = 0, Max = 0.95, Rounding = 2, Compact = true, Callback = function(v) S.MouseSmooth = v end })
 aimGroup:AddSlider("Aimbot_Deadzone", { Text = "滑鼠死區", Default = 2, Min = 0, Max = 20, Rounding = 0, Compact = true, Callback = function(v) S.MouseDeadzone = v end })
@@ -1348,22 +1270,19 @@ backGroup:AddToggle("Backshoot_Enabled", {
         end
     end
 })
-backGroup:AddSlider("Teleport_Delay", {
-    Text = "瞬移延遲（秒）", Default = 0.5, Min = 0, Max = 3, Rounding = 2, Compact = true,
-    Callback = function(v) S.TeleportDelay = v end
-})
-backGroup:AddToggle("Persist_Respawn", {
-    Text = "死亡復活後持續", Default = true,
-    Callback = function(v) S.PersistAfterRespawn = v end
-})
-backGroup:AddSlider("Orbit_Speed", { Text = "繞圈速度", Default = 3, Min = 0.5, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitSpeed = v end })
-backGroup:AddSlider("Orbit_Radius", { Text = "繞圈半徑", Default = 5, Min = 1, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitRadius = v end })
+backGroup:AddSlider("Orbit_Delay", { Text = "延遲（秒，鎖定後才開始繞）", Default = 0, Min = 0, Max = 5, Rounding = 2, Compact = true, Callback = function(v) S.OrbitDelay = v end })
+backGroup:AddSlider("Orbit_Speed", { Text = "繞圈速度（圈/秒）", Default = 3, Min = 0.5, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitSpeed = v end })
+backGroup:AddSlider("Orbit_Radius", { Text = "繞圈半徑（格）", Default = 5, Min = 1, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitRadius = v end })
 backGroup:AddSlider("Orbit_Height", { Text = "繞圈高度", Default = 1, Min = -5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.OrbitHeight = v end })
+backGroup:AddToggle("Orbit_DeathRespawn", { Text = "死亡復活後自動重啟", Default = true, Callback = function(v) S.OrbitDeathRespawn = v end })
 
 local antiGroup = CombatTab:AddRightGroupbox("反瞄準（Anti-Aim）")
 antiGroup:AddToggle("AntiAim_Enabled", {
     Text = "啟用反瞄準", Default = false,
-    Callback = function(v) S.AntiAimEnabled = v; updateAntiAim() end
+    Callback = function(v)
+        S.AntiAimEnabled = v
+        updateAntiAim()
+    end
 })
 antiGroup:AddDropdown("AntiAim_Yaw", { Text = "Yaw", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimYaw = v end })
 antiGroup:AddDropdown("AntiAim_Pitch", { Text = "Pitch", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimPitch = v end })
@@ -1392,17 +1311,11 @@ crossGroup:AddToggle("Crosshair_ShowLines", { Text = "Show Lines", Default = tru
 crossGroup:AddSlider("Crosshair_Spin", { Text = "Spin Speed", Default = 150, Min = 0, Max = 340, Rounding = 0, Compact = true, Callback = function(v) S.CrosshairSpinSpeed = v end })
 crossGroup:AddDropdown("Crosshair_Mode", { Text = "Mode", Default = "static", Values = {"static","follow muzzle"}, Callback = function(v) S.CrosshairMode = v end })
 
-local guiGroup = VisualsTab:AddRightGroupbox("GUI 外觀")
-guiGroup:AddToggle("Gui_Pulse", { Text = "脈衝光暈", Default = true, Callback = function(v) S.GuiPulse = v end })
-guiGroup:AddToggle("Gui_Glow", { Text = "外框光暈", Default = true, Callback = function(v) S.GuiGlow = v end })
-guiGroup:AddColorPicker("Gui_Accent", { Default = S.GuiAccent, Title = "主色", Callback = function(v) S.GuiAccent = v end })
-guiGroup:AddColorPicker("Gui_Accent2", { Default = S.GuiAccent2, Title = "副色", Callback = function(v) S.GuiAccent2 = v end })
-
 -- Movement
 local moveGroup = MovementTab:AddLeftGroupbox("Movement")
 moveGroup:AddToggle("Move_InfJump", { Text = "Infinite Jump", Default = false, Callback = function(v) S.InfJump = v end })
 moveGroup:AddToggle("Move_Noclip", { Text = "Noclip", Default = false, Callback = function(v) S.Noclip = v end })
-moveGroup:AddToggle("Move_Fly", { Text = "Fly", Default = false, Callback = function(v) S.FlyEnabled = v; updateFly() end })
+moveGroup:AddToggle("Move_Fly", { Text = "Fly", Default = false, Callback = function(v) S.FlyEnabled = v updateFly() end })
 moveGroup:AddSlider("Move_WalkSpeed", { Text = "WalkSpeed", Default = 16, Min = 16, Max = 200, Rounding = 0, Compact = true, Callback = function(v) S.WalkSpeed = v end })
 moveGroup:AddSlider("Move_JumpPower", { Text = "JumpPower", Default = 50, Min = 50, Max = 300, Rounding = 0, Compact = true, Callback = function(v) S.JumpPower = v end })
 moveGroup:AddSlider("Move_FlySpeed", { Text = "Fly Speed", Default = 50, Min = 16, Max = 750, Rounding = 0, Compact = true, Callback = function(v) S.FlySpeed = v end })
@@ -1411,25 +1324,24 @@ moveGroup:AddSlider("Move_FlySpeed", { Text = "Fly Speed", Default = 50, Min = 1
 local gunGroup = GunTab:AddLeftGroupbox("Gun Mods")
 gunGroup:AddToggle("Gun_AntiKatana", { Text = "Anti Katana", Default = false, Callback = function(v) S.AntiKatana = v end })
 gunGroup:AddToggle("Gun_NoCooldown", { Text = "No Cooldown", Default = false, Callback = function(v) S.NoCooldown = v end })
-gunGroup:AddToggle("Gun_NoSpread", { Text = "No Spread", Default = false, Callback = function(v) S.NoSpread = v end })
+gunGroup:AddToggle("Gun_NoSpread", { Text = "No Spread (無散射)", Default = false, Callback = function(v) S.NoSpread = v end })
 gunGroup:AddToggle("Gun_NoRecoil", { Text = "No Recoil", Default = false, Callback = function(v) S.NoRecoil = v end })
 gunGroup:AddToggle("Gun_MaxAccuracy", { Text = "Max Accuracy", Default = false, Callback = function(v) S.MaxAccuracy = v end })
 gunGroup:AddToggle("Gun_RapidAttack", { Text = "Rapid Attack", Default = false, Callback = function(v) S.RapidAttack = v end })
-gunGroup:AddToggle("Gun_NoMuzzleFlash", { Text = "No Muzzle Flash", Default = false, Callback = function(v) S.NoMuzzleFlash = v; updateMuzzleFlash() end })
+gunGroup:AddToggle("Gun_NoMuzzleFlash", { Text = "No Muzzle Flash", Default = false, Callback = function(v) S.NoMuzzleFlash = v updateMuzzleFlash() end })
 
 -- Misc
 local deviceGroup = MiscTab:AddLeftGroupbox("Device Spoof")
-deviceGroup:AddToggle("Device_Spoof", { Text = "Enable", Default = false, Callback = function(v) S.DeviceSpoof = v; applyDeviceSpoof() end })
-deviceGroup:AddDropdown("Device_Type", { Text = "Type", Default = "PC", Values = {"PC","Console","Mobile","VR"}, Callback = function(v) S.DeviceType = v; if S.DeviceSpoof then applyDeviceSpoof() end end })
+deviceGroup:AddToggle("Device_Spoof", { Text = "Enable", Default = false, Callback = function(v) S.DeviceSpoof = v applyDeviceSpoof() end })
+deviceGroup:AddDropdown("Device_Type", { Text = "Type", Default = "PC", Values = {"PC","Console","Mobile","VR"}, Callback = function(v) S.DeviceType = v if S.DeviceSpoof then applyDeviceSpoof() end end })
 
 local miscGroup = MiscTab:AddRightGroupbox("Misc")
-miscGroup:AddToggle("Misc_TeamCheck", { Text = "隊伍檢測", Default = true, Callback = function(v) S.TeamCheck = v end })
+miscGroup:AddToggle("Misc_TeamCheck", { Text = "隊伍檢測（開啟自瞄時自動啟用）", Default = true, Callback = function(v) S.TeamCheck = v end })
 miscGroup:AddToggle("Misc_AntiAFK", { Text = "反 AFK", Default = true, Callback = function(v) S.AntiAFK = v end })
 miscGroup:AddButton({ Text = "卸載腳本", Func = function()
     pcall(function() RunService:UnbindFromRenderStep(AIMBOT_BIND) end)
     if antiAimConn then antiAimConn:Disconnect() end
     if backshootMonitorConn then backshootMonitorConn:Disconnect() end
-    if teleportState.characterConn then teleportState.characterConn:Disconnect() end
     if espGui then espGui:Destroy() end
     for _, line in ipairs(crosshairLines) do pcall(function() line:Remove() end) end
     for k, _ in pairs(espCache) do clESP(k) end
@@ -1438,10 +1350,13 @@ miscGroup:AddButton({ Text = "卸載腳本", Func = function()
     Library:Unload()
 end })
 
--- SaveManager 建構
 if SaveManager then
-    pcall(function() SaveManager:BuildConfigSection(ConfigTab) end)
-    pcall(function() SaveManager:LoadAutoloadConfig() end)
+    pcall(function()
+        SaveManager:BuildConfigSection(ConfigTab)
+    end)
+    pcall(function()
+        SaveManager:LoadAutoloadConfig()
+    end)
 end
 
 -- ========== 主迴圈 ==========
@@ -1515,5 +1430,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "v3 Hub", Description = "載入完成", Time = 5 })
+Library:Notify({ Title = "v3 Hub", Description = "已載入 | RIVALS", Time = 4 })
 print("[v3 Hub] 完整載入完成")
