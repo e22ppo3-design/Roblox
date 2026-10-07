@@ -1,10 +1,11 @@
 -- ============================================================
--- v3 Hub // RIVALS v10.5
--- v10.4 + 換服自動重跑
+-- v3 Hub // RIVALS v10.7
+-- v10.6 + 方案 A 固定連結換服自動重跑
 -- ============================================================
 
--- ★★★ 把下面這行改成你的腳本 raw URL ★★★
-local V3HUB_SELF_URL = "https://raw.githubusercontent.com/e22ppo3-design/Roblox/main/v3hub.lua"
+-- ★★★ 把下面這行改成你的 GitHub raw 連結 ★★★
+-- 格式：https://raw.githubusercontent.com/你的帳號/你的庫名/main/v3hub.lua
+local V3HUB_SELF_URL = "https://raw.githubusercontent.com/你的帳號/你的庫名/main/v3hub.lua"
 
 -- 掛 queue_on_teleport，換服自動重跑
 task.spawn(function()
@@ -14,7 +15,7 @@ task.spawn(function()
             or (fluxus and fluxus.queue_on_teleport)
 
         if not queueFn then
-            warn("[v3 Hub] 執行器不支援 queue_on_teleport，換服不會自動重跑")
+            warn("[v3 Hub] 執行器不支援 queue_on_teleport")
             return
         end
 
@@ -24,7 +25,7 @@ task.spawn(function()
         end
 
         queueFn("loadstring(game:HttpGet('" .. V3HUB_SELF_URL .. "'))()")
-        print("[v3 Hub] 換服自動重跑已掛載")
+        print("[v3 Hub] 換服自動重跑已掛載：" .. V3HUB_SELF_URL)
     end)
 
     if not ok then
@@ -1453,7 +1454,7 @@ local ok = pcall(function()
     loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
 end)
 if not ok then
-    warn("[v10.5] Obsidian 載入失敗")
+    warn("[v10.7] Obsidian 載入失敗")
     return
 end
 local Library = getgenv().Library or getgenv().ObsidianLibrary
@@ -1488,7 +1489,7 @@ if SaveManager then
 end
 
 local Window = Library:CreateWindow({
-    Title = "v3 Hub // RIVALS v10.5",
+    Title = "v3 Hub // RIVALS v10.7",
     Footer = "v3 Hub | Obsidian GUI",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
@@ -1778,5 +1779,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "v3 Hub", Description = "v10.5 換服自動重跑已加入", Time = 4 })
-print("[v10.5] 完整載入完成")
+Library:Notify({ Title = "v3 Hub", Description = "v10.7 換服自動重跑已加入", Time = 4 })
+print("[v10.7] 完整載入完成")
