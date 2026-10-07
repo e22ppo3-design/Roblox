@@ -4,7 +4,7 @@
 -- ============================================================
 
 -- ★★★ 把下面這行改成你的腳本 raw URL ★★★
-local V3HUB_SELF_URL = "https://github.com/e22ppo3-design/Roblox/raw/07da54833f19aa95dd6dd58dff44870e5a775def/Script%20final%20version.lua"
+local V3HUB_SELF_URL = "https://raw.githubusercontent.com/e22ppo3-design/Roblox/main/v3hub.lua"
 
 -- 掛 queue_on_teleport，換服自動重跑
 task.spawn(function()
