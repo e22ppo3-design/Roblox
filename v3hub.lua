@@ -1,17 +1,13 @@
 local V3HUB_SELF_URL = "https://raw.githubusercontent.com/e22ppo3-design/Roblox/main/v3hub.lua"
-
 task.spawn(function()
     local ok = pcall(function()
-        local queueFn = queue_on_teleport
-            or (syn and syn.queue_on_teleport)
-            or (fluxus and fluxus.queue_on_teleport)
+        local queueFn = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
         if not queueFn then return end
         if V3HUB_SELF_URL == "" or V3HUB_SELF_URL:find("你的帳號") then return end
         queueFn("loadstring(game:HttpGet('" .. V3HUB_SELF_URL .. "'))()")
     end)
 end)
 
--- ========== 反封號 ==========
 local hookmetamethod = hookmetamethod
 local getrawmetatable = getrawmetatable
 local setreadonly = setreadonly
@@ -53,7 +49,6 @@ W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     C = W.CurrentCamera
 end)
 
--- setmetatable 精準攔截（AntiCheat 特徵表）
 do
     if getgenvFn and hookfunction and newcclosure and getrenv then
         getgenvFn().__LH_SetmtBP = game
@@ -79,7 +74,6 @@ do
     end
 end
 
--- namecall hook
 if hookmetamethod and getrawmetatable and setreadonly then
     local mt = getrawmetatable(game)
     pcall(function() setreadonly(mt, false) end)
@@ -100,7 +94,6 @@ if hookmetamethod and getrawmetatable and setreadonly then
     pcall(function() setreadonly(mt, true) end)
 end
 
--- 連線清除
 local function nukeConnections()
     if not getconnections then return end
     pcall(function()
@@ -131,7 +124,6 @@ LP.CharacterAdded:Connect(function()
     nukeConnections()
 end)
 
--- __index hook 保護 Kick
 if hookmetamethod then
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
@@ -142,7 +134,6 @@ if hookmetamethod then
     end)
 end
 
--- AC 腳本癱瘓
 task.spawn(function()
     local tags = {"anticheat","ac","detection","ban","kick","security","moderation"}
     local function procAC(o)
@@ -162,7 +153,6 @@ task.spawn(function()
     game.DescendantAdded:Connect(procAC)
 end)
 
--- LocalScript3 常數掃描
 task.spawn(function()
     if not hookfunction or not getgc or not getfenv then return end
     pcall(function()
@@ -190,14 +180,12 @@ task.spawn(function()
     end)
 end)
 
--- 假 ClientAlert
 pcall(function()
     local fakeEv = Instance.new("RemoteEvent")
     fakeEv.Name = "ClientAlert"
     fakeEv.Parent = LP
 end)
 
--- ========== 模組 ==========
 local Modules = RS:WaitForChild("Modules", 10)
 local Utility, EnumLibrary, CosmeticLibrary, ItemLibrary
 pcall(function() Utility = require(Modules:WaitForChild("Utility", 5)) end)
@@ -226,7 +214,6 @@ local UseItem = FighterRemote and FighterRemote:FindFirstChild("UseItem")
 local SetControls = FighterRemote and FighterRemote:FindFirstChild("SetControls")
 local UpdateCameraRotation = FighterRemote and FighterRemote:FindFirstChild("UpdateCameraRotation")
 
--- ========== 動態取得 localFighter ==========
 local _fighterCache = nil
 local _fighterCacheTime = 0
 local function getLocalFighter()
@@ -252,16 +239,13 @@ LP.CharacterAdded:Connect(function()
     getLocalFighter()
 end)
 
--- ========== 設定 ==========
 local S = {
-    -- Silent Aim
     SilentEnabled = false, SilentHitPart = "Head", SilentHitChance = 100, SilentFOV = 150,
     SilentAutoShoot = false, SilentFollowMuzzle = false, SilentWallCheck = true,
     Silent360 = false, SilentJitter = true, SilentAvoidDeflect = true,
     SilentStickiness = 0.05, SilentMultipoint = false, SilentMultipointCount = 5,
     SilentTorsoFallback = false, SilentBodyMix = 25, SilentJitterDeg = 1.5,
 
-    -- Aimbot（完整版）
     AimEnabled = false, AimKey = "MB2", AimVisCheck = true,
     AimSmoothness = 0, AimSmoothnessX = 0, AimSmoothnessY = 0, AimLinkAxes = true,
     AimJumpDamping = 40, AimCancelSprings = true,
@@ -274,7 +258,6 @@ local S = {
     AimDebug = false, AimReactionMs = 0, AimNoiseDeg = 0, AimOvershoot = 0,
     AimDirectCamera = false,
 
-    -- Rage（Polar）
     RageEnabled = false, RageMode = "Polar",
     RageDirectFire = true, RageRateLimit = false, RageTaps = 6, RageTapsPerFrame = 1,
     RageVoidMove = true, RageVoidDepth = "deep", RageVoidMinStep = 25000,
@@ -295,14 +278,12 @@ local S = {
     RageSwitchMelee = false, RageSwitchRateLimit = 0.06,
     RageFireRateOverride = 0, RageEyeMuzzleClamp = true,
 
-    -- Anti-Aim
     AntiAimEnabled = false, AntiAimYaw = "jitter", AntiAimPitch = "jitter",
     AntiAimAngle = "none", AntiAimCustomAngle = 0,
     AntiAimMinSpeed = 10, AntiAimMaxSpeed = 20,
     AntiAimMinAngle = 30, AntiAimMaxAngle = 60,
     AntiAimRandomAngle = false,
 
-    -- ESP
     ESPEnabled = true, ESPShowName = true, ESPShowDistance = true,
     ESPShowHealth = true, ESPShowTracer = true, ESPShowSkeleton = true,
     ESPMaxDistance = 1200, ESPTeamCheck = true,
@@ -335,30 +316,22 @@ local S = {
     ESPFlagInvincible = true, ESPFlagLowHP = true, ESPFlagStaring = false,
     ESPMaxPlayers = 0, ESPFadeIn = true, ESPDeclutter = true,
 
-    -- Crosshair
     CrosshairEnabled = false, CrosshairColor = Color3.fromRGB(0, 200, 255),
     CrosshairShowLines = true, CrosshairSpinSpeed = 150, CrosshairMode = "static",
 
-    -- Movement
     InfJump = false, JumpPower = 50, WalkSpeed = 16,
     FlyEnabled = false, FlySpeed = 50, Noclip = false,
 
-    -- Gun
     NoCooldown = false, NoSpread = false, NoRecoil = false,
     MaxAccuracy = false, RapidAttack = false, NoMuzzleFlash = false,
     AntiKatana = false,
 
-    -- Device
     DeviceSpoof = false, DeviceType = "PC",
-
-    -- Misc
     TeamCheck = true, AntiAFK = true,
 
-    -- Auto
     AutoQueueEnabled = false, AutoQueueMode = "1v1",
     AutoQueueRanked = false, AutoQueueDelay = 2,
 
-    -- FX
     FXHitMarker = true,
     FXHitMarkerColor = Color3.fromRGB(255, 255, 255),
     FXHitMarkerCritColor = Color3.fromRGB(255, 194, 75),
@@ -406,7 +379,6 @@ local S = {
 local hasMouseMoveRel = type(mousemoverel) == "function"
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
 
--- ========== 狀態 ==========
 local State = {
     Target = nil, CamPos = Vector3.zero,
     AimbotTarget = nil, AimbotPart = nil,
@@ -450,7 +422,6 @@ local State = {
     RageImmuneOverride = 0, RageFireWhy = nil,
 }
 
--- ========== 通用工具 ==========
 local function worldToScreen(pos, cam)
     local c = cam or C
     if not c then return Vector2.new(0, 0), false end
@@ -634,7 +605,6 @@ local function clampHop(targetPos, fromPos, maxHop)
     return fromPos + d * (maxHop / m)
 end
 
--- ========== Identity 保護 ==========
 local _identGet, _identSet, _identTried = nil, nil, false
 local function identEnsure()
     if _identTried then return _identSet ~= nil end
@@ -658,13 +628,13 @@ local function identityIsSafe()
 end
 
 local function atId2(fn, ...)
-    State.CapabilitySeam = "atId2 " .. tostring(debugLib.traceback and "?" or "")
     if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
     local done, ok, res = false, false, nil
     task.spawn(function()
         local okPrev, prev = pcall(_identGet)
         if not okPrev then return end
-        if not pcall(_identSet, 2) then return end        done = true
+        if not pcall(_identSet, 2) then return end
+        done = true
         ok, res = pcall(fn, ...)
         pcall(_identSet, prev)
     end)
@@ -673,7 +643,6 @@ local function atId2(fn, ...)
 end
 
 local function atId8(fn, ...)
-    State.CapabilitySeam = "atId8"
     if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
     local done, ok, res = false, false, nil
     task.spawn(function()
@@ -688,21 +657,14 @@ local function atId8(fn, ...)
     return pcall(fn, ...)
 end
 
--- ========== Capability observer ==========
 local _identityIsSafeFn = (function()
     local latched, killed = nil, false
-    local _seamShown = {}
     State.CapabilityObserver = false
     pcall(function()
         game:GetService("LogService").MessageOut:Connect(function(msg)
             if type(msg) ~= "string" or not string.find(msg, "lacking capability", 1, true) then return end
             State.CapabilityErrors = (State.CapabilityErrors or 0) + 1
             State.CapabilityLastStatus = tostring(State.RageStatus)
-            local seam = tostring(State.CapabilitySeam or "unlabelled")
-            if _seamShown[seam] == nil then
-                _seamShown[seam] = true
-                print("[v11.0] CAPABILITY ERROR while: " .. seam .. "   (rage status: " .. tostring(State.RageStatus) .. ")")
-            end
             if not killed then
                 killed = true
                 State.CapabilityKilledAt = tostring(State.RageStatus)
@@ -720,14 +682,13 @@ local _identityIsSafeFn = (function()
     end
 end)()
 
--- ========== ConstPatch ==========
 local ConstPatch = {}
 ;(function()
     local _getconstants = getconstants or (debugLib and debugLib.getconstants)
-    local _setconstant  = setconstant  or (debugLib and debugLib.setconstant)
-    local _getprotos    = getprotos    or (debugLib and debugLib.getprotos)
-    local _getproto     = getproto     or (debugLib and debugLib.getproto)
-    local HAVE_CONST  = type(_getconstants) == "function" and type(_setconstant) == "function"
+    local _setconstant = setconstant or (debugLib and debugLib.setconstant)
+    local _getprotos = getprotos or (debugLib and debugLib.getprotos)
+    local _getproto = getproto or (debugLib and debugLib.getproto)
+    local HAVE_CONST = type(_getconstants) == "function" and type(_setconstant) == "function"
     local HAVE_PROTOS = type(_getprotos) == "function" and type(_getproto) == "function"
     local _sets = {}
     local function ledger(create)
@@ -741,10 +702,8 @@ local ConstPatch = {}
         return t
     end
     local HASH_SEED = 5381
-    local STR_CAP   = 256
-    local function hashByte(h, b)
-        return bit32.band(bit32.lshift(h, 5) + h + b, 0xFFFFFFFF)
-    end
+    local STR_CAP = 256
+    local function hashByte(h, b) return bit32.band(bit32.lshift(h, 5) + h + b, 0xFFFFFFFF) end
     local function hashString(h, s)
         local n = #s
         h = hashByte(h, bit32.band(n, 0xFF))
@@ -913,7 +872,6 @@ local ConstPatch = {}
     function ConstPatch.available() return HAVE_CONST, HAVE_PROTOS end
 end)()
 
--- ========== ViewAngle ==========
 local ViewAngle = {}
 ;(function()
     local _remote = nil
@@ -988,7 +946,6 @@ local ViewAngle = {}
         if on == _suppressed then return end
         if on then
             if not resolveLoop() then return end
-            State.CapabilitySeam = "08c viewangle debug.setupvalue"
             if pcall(debugLib.setupvalue, _loopFn, _utilIdx, makeShim()) then
                 _suppressed = true
                 State.ViewAngleForged = true
@@ -1062,8 +1019,8 @@ local ViewAngle = {}
 
     ViewAngle.isForging = function() return _forged ~= nil end
 end)()
-print("[v11.0] 第一段載入完成：反封號 / 依賴 / ConstPatch / ViewAngle")
-local _sharedVelMap = {}
+
+print("[v11.0] 第一段載入完成")local _sharedVelMap = {}
 do
     local _svPos, _svTime = {}, {}
     local _svAccum = 0
@@ -1125,7 +1082,6 @@ local function calculateLead(targetChar, fromPos, wantLead)
     return lead
 end
 
--- ========== Deflect / 特殊 ==========
 local DEFLECT_ANIM_IDS = {
     ["14761240825"]=true,["14761220206"]=true,["14761234917"]=true,["14761221711"]=true,
     ["14761223422"]=true,["14761225204"]=true,["14761232380"]=true,["90436105114997"]=true,
@@ -1203,7 +1159,6 @@ end
     end)
 end)()
 
--- ========== 免疫 ==========
 local _invincible, _invincEnt = {}, {}
 local function isSpawnProtected(player)
     if not player then return false end
@@ -1341,7 +1296,6 @@ local function isValidTarget(player, checkVis, keepDeflect, rageScope)
     return true
 end
 
--- ========== 目標選擇 ==========
 local function pickPart(char, mode)
     if not char then return nil end
     if mode == "Closest" then
@@ -1398,7 +1352,6 @@ local function selectTarget(opts)
     return best, bestPart
 end
 
--- ========== Rage 主控 ==========
 local Rage = {}
 ;(function()
     local _tgtConn = nil
@@ -1671,7 +1624,6 @@ local Rage = {}
     end
 end)()
 
--- ========== PolarCore ==========
 local PolarCore = {}
 ;(function()
     local _realCF, _realChar = nil, nil
@@ -1687,11 +1639,9 @@ local PolarCore = {}
     local _notified = nil
     local _conn, _stepConn, _charConn = nil, nil, nil
     local RENDER_NAME = "v3Hub_Polar_Restore"
-    local CAMERA_NAME = "v3Hub_Polar_CamAnchor"
     local VOID_R_MIN, VOID_R_MAX = 110000, 140000
     local VOID_MIN_STEP = 25000
     local VOID_MOVE = true
-    local HIDE_WHEN_UNREACHABLE = true
     local DEFLECT_MAX_HOLD = 1.5
     local IMMUNE_MAX_HOLD = 6.0
     local _immuneSince = 0
@@ -1700,7 +1650,6 @@ local PolarCore = {}
     local EYE_UP_SANE = 2.5
     local KILL_PLANE_BUF = 200
     local RAGE_CLAMP_FRAC = 0.30
-    local PARK_UP_STUDS = 12
     local _preParkCF = nil
     local FFLAGS_ON = { DFIntS2PhysicsSenderRate = "120", DFIntAssemblyHistoryBufferSize = "2147483648", DFIntAssemblyHistorySkipSize = "0" }
     local FFLAGS_OFF = { DFIntS2PhysicsSenderRate = "15", DFIntAssemblyHistoryBufferSize = "15", DFIntAssemblyHistorySkipSize = "8" }
@@ -1776,12 +1725,10 @@ local PolarCore = {}
         local want = on and FFLAGS_ON or FFLAGS_OFF
         local threw = false
         local keyOk = false
-        local detail = ""
         for name, value in want do
             local wrote = pcall(set, name, value)
             if not wrote then threw = true end
             if name == "DFIntAssemblyHistorySkipSize" and wrote then keyOk = true end
-            detail = detail .. string.sub(name, 5) .. "=" .. (wrote and "ok" or "THREW") .. " "
         end
         _physSet = on and not threw
         _physLive = _physSet and keyOk and fpdhOk
@@ -1844,7 +1791,6 @@ local PolarCore = {}
         return cf
     end
     local function rawSetCFrame(hrp, cf)
-        State.CapabilitySeam = "polar park write"
         identEnsure()
         if _identSet ~= nil and identityIsSafe() then
             local wrote = false
@@ -2002,8 +1948,7 @@ local PolarCore = {}
         State.RageVoidActive = false
         _firing = true
         State.RageStatus = "Attacking"
-        local eyePos = hpos + Vector3.new(0, 0, 0)
-        eyePos = C.CFrame.Position
+        local eyePos = C.CFrame.Position
         local sent = polarFire(eyePos, hpos, hh)
         if sent == 0 then
             State.RageFireZeroFrames = (State.RageFireZeroFrames or 0) + 1
@@ -2013,7 +1958,6 @@ local PolarCore = {}
         end
         if _notified ~= tgt then
             _notified = tgt
-            pcall(function() end)
         end
     end
     local function restoreHome(pin)
@@ -2136,7 +2080,6 @@ local PolarCore = {}
     end
 end)()
 
--- ========== Aimbot 完整版 ==========
 local Aimbot = {}
 ;(function()
     local TAU = math.pi * 2
@@ -2470,7 +2413,8 @@ local Aimbot = {}
             _ramp = 0
             _haveTgt = false
             _ffy, _ffp = 0, 0
-            _prevTgt = tgt            _flickActive = false
+            _prevTgt = tgt
+            _flickActive = false
         end
         _tgt, _part = tgt, part
         State.AimbotTarget = tgt
@@ -2656,8 +2600,7 @@ local Aimbot = {}
     function Aimbot.hasMouseMove() return _mouseMove ~= nil end
 end)()
 
-print("[v11.0] 第二段載入完成：Rage / PolarCore / Aimbot 完整版")
-local silentLastFire = 0
+print("[v11.0] 第二段載入完成")local silentLastFire = 0
 local silentFireCD = 0.01
 local raySilent = RaycastParams.new()
 raySilent.FilterType = Enum.RaycastFilterType.Blacklist
@@ -2762,11 +2705,8 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- ========== 反瞄準 ==========
 local antiAimState = { frameCounter = 0, smoothYaw = 0, smoothPitch = 0 }
-local function getRandomInRange(mn, mx)
-    return mn + math.random() * (mx - mn)
-end
+local function getRandomInRange(mn, mx) return mn + math.random() * (mx - mn) end
 local function calcAntiAimYaw()
     local yaw = 0
     local currentTime = tick()
@@ -2827,7 +2767,6 @@ local antiAimConn = RunService.Heartbeat:Connect(function()
     end)
 end)
 
--- ========== ESP ==========
 local espGui = Instance.new("ScreenGui")
 espGui.Name = "v3HubESP_" .. tostring(math.random(1, 999999))
 espGui.ResetOnSpawn = false
@@ -3013,7 +2952,6 @@ local function updateESP()
                                 local wPx = hPx * 0.5 * S.ESPBoxScale
                                 local cx = (rpV.X + hpV.X) / 2
                                 local cy = (rpV.Y + hpV.Y) / 2
-                                local co = Color3.fromHSV((tGlobal * 0.25 + dist/2000*0.3) % 1, 1, 1)
 
                                 d.holder.Position = UDim2.fromOffset(math.floor(cx - wPx/2), math.floor(cy - hPx/2))
                                 d.holder.Size = UDim2.fromOffset(math.floor(wPx), math.floor(hPx))
@@ -3092,7 +3030,6 @@ local function updateESP()
     end
 end
 
--- ========== Crosshair ==========
 local crosshairLines = {}
 for i = 1, 8 do crosshairLines[i] = Drawing.new("Line") end
 local crosshairAngles = {0, 90, 180, 270}
@@ -3148,7 +3085,6 @@ local function updateCrosshair(t)
     end
 end
 
--- ========== 移動 ==========
 local flyBP, flyBG = nil, nil
 local flyActive = false
 local function cleanupFly()
@@ -3213,7 +3149,6 @@ UIS.JumpRequest:Connect(function()
     end
 end)
 
--- ========== 槍枝修改 ==========
 if GunModule and GunModule.StartShooting then
     local origGunShoot = GunModule.StartShooting
     GunModule.StartShooting = function(self, p26, p27)
@@ -3297,7 +3232,6 @@ local function updateMuzzleFlash()
     end
 end
 
--- ========== 裝置偽裝 ==========
 local DEVICE_CODES = {
     ["Mobile"]="Touch",["Console"]="Gamepad",["VR"]="VR",["PC"]="MouseKeyboard",
 }
@@ -3311,7 +3245,6 @@ LP.CharacterAdded:Connect(function()
     if S.DeviceSpoof then applyDeviceSpoof() end
 end)
 
--- ========== 主迴圈 ==========
 RunService.RenderStepped:Connect(function(dt)
     tGlobal = tGlobal + dt
     if not C then C = W.CurrentCamera end
@@ -3348,7 +3281,6 @@ task.spawn(function()
     end
 end)
 
--- ========== 自動排隊 ==========
 local autoQueueThread = nil
 local function autoQueueStop()
     if autoQueueThread then autoQueueThread = nil end
@@ -3387,7 +3319,6 @@ task.spawn(function()
     end
 end)
 
--- ========== Obsidian GUI ==========
 local ObsidianRepo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
 local ok = pcall(function()
     loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
@@ -3439,7 +3370,6 @@ local MiscTab = Window:AddTab("Misc", "circle-ellipsis")
 local AutoTab = Window:AddTab("Auto", "zap")
 local ConfigTab = Window:AddTab("Configs", "save")
 
--- Combat: Silent Aim
 local silentGroup = CombatTab:AddLeftGroupbox("Silent Aim")
 silentGroup:AddToggle("Silent_Enabled", {
     Text = "Enable Silent Aim", Default = false,
@@ -3460,7 +3390,6 @@ silentGroup:AddSlider("Silent_FOV", { Text = "FOV Radius", Default = 150, Min = 
 silentGroup:AddSlider("Silent_HitChance", { Text = "Hit Chance %", Default = 100, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) S.SilentHitChance = v end })
 silentGroup:AddToggle("Silent_FollowMuzzle", { Text = "Follow Muzzle", Default = false, Callback = function(v) S.SilentFollowMuzzle = v end })
 
--- Combat: Aimbot
 local aimGroup = CombatTab:AddLeftGroupbox("Aimbot (Complete)")
 aimGroup:AddToggle("Aim_Enabled", { Text = "Enable Aimbot", Default = false, Callback = function(v)
     if v then Aimbot.enable() else Aimbot.disable() end
@@ -3494,7 +3423,6 @@ aimGroup:AddToggle("Aim_ShowFOV", { Text = "Show FOV", Default = false, Callback
 aimGroup:AddToggle("Aim_ShowLock", { Text = "Show lock indicator", Default = false, Callback = function(v) S.AimShowLock = v end })
 aimGroup:AddToggle("Aim_DirectCamera", { Text = "Direct camera fallback", Default = false, Callback = function(v) S.AimDirectCamera = v end })
 
--- Combat: Rage (Polar)
 local rageGroup = CombatTab:AddRightGroupbox("Rage (Polar)")
 rageGroup:AddToggle("Rage_Enabled", {
     Text = "Enable Rage", Default = false,
@@ -3538,7 +3466,6 @@ rageGroup:AddToggle("Rage_PolarParity", { Text = "Polar parity", Default = true,
 rageGroup:AddToggle("Rage_VoidPhase", { Text = "Void phase", Default = true, Callback = function(v) S.RageVoidPhase = v end })
 rageGroup:AddSlider("Rage_EyeMuzzleSep", { Text = "Eye muzzle sep", Default = 0.07, Min = 0, Max = 1, Rounding = 2, Compact = true, Callback = function(v) S.RageEyeMuzzleSep = v end })
 
--- Combat: Anti-Aim
 local antiGroup = CombatTab:AddRightGroupbox("Anti-Aim")
 antiGroup:AddToggle("AntiAim_Enabled", { Text = "Enable", Default = false, Callback = function(v) S.AntiAimEnabled = v end })
 antiGroup:AddDropdown("AntiAim_Yaw", { Text = "Yaw", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimYaw = v end })
@@ -3551,7 +3478,6 @@ antiGroup:AddSlider("AntiAim_MinAngle", { Text = "Min Angle", Default = 30, Min 
 antiGroup:AddSlider("AntiAim_MaxAngle", { Text = "Max Angle", Default = 60, Min = 1, Max = 180, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMaxAngle = v end })
 antiGroup:AddToggle("AntiAim_RandomAngle", { Text = "Random Angle", Default = false, Callback = function(v) S.AntiAimRandomAngle = v end })
 
--- Visuals: ESP
 local espGroup = VisualsTab:AddLeftGroupbox("ESP")
 espGroup:AddToggle("ESP_Enabled", { Text = "Enable", Default = true, Callback = function(v) S.ESPEnabled = v end })
 espGroup:AddToggle("ESP_ShowName", { Text = "Name", Default = true, Callback = function(v) S.ESPShowName = v end })
@@ -3564,14 +3490,12 @@ espGroup:AddSlider("ESP_MaxPlayers", { Text = "Max Players", Default = 0, Min = 
 espGroup:AddToggle("ESP_TeamCheck", { Text = "Team Check", Default = true, Callback = function(v) S.ESPTeamCheck = v; S.TeamCheck = v end })
 espGroup:AddSlider("ESP_BoxScale", { Text = "Box Size", Default = 1, Min = 0.6, Max = 1.6, Rounding = 2, Compact = true, Callback = function(v) S.ESPBoxScale = v end })
 
--- Visuals: Crosshair
 local crossGroup = VisualsTab:AddRightGroupbox("Crosshair")
 crossGroup:AddToggle("Crosshair_Enabled", { Text = "Enable", Default = false, Callback = function(v) S.CrosshairEnabled = v end }):AddColorPicker("Crosshair_Color", { Default = Color3.fromRGB(0, 200, 255), Title = "Color", Callback = function(v) S.CrosshairColor = v end })
 crossGroup:AddToggle("Crosshair_ShowLines", { Text = "Show Lines", Default = true, Callback = function(v) S.CrosshairShowLines = v end })
 crossGroup:AddSlider("Crosshair_Spin", { Text = "Spin Speed", Default = 150, Min = 0, Max = 340, Rounding = 0, Compact = true, Callback = function(v) S.CrosshairSpinSpeed = v end })
 crossGroup:AddDropdown("Crosshair_Mode", { Text = "Mode", Default = "static", Values = {"static","follow muzzle"}, Callback = function(v) S.CrosshairMode = v end })
 
--- Movement
 local moveGroup = MovementTab:AddLeftGroupbox("Movement")
 moveGroup:AddToggle("Move_InfJump", { Text = "Infinite Jump", Default = false, Callback = function(v) S.InfJump = v end })
 moveGroup:AddToggle("Move_Noclip", { Text = "Noclip", Default = false, Callback = function(v) S.Noclip = v end })
@@ -3580,7 +3504,6 @@ moveGroup:AddSlider("Move_WalkSpeed", { Text = "WalkSpeed", Default = 16, Min = 
 moveGroup:AddSlider("Move_JumpPower", { Text = "JumpPower", Default = 50, Min = 50, Max = 300, Rounding = 0, Compact = true, Callback = function(v) S.JumpPower = v end })
 moveGroup:AddSlider("Move_FlySpeed", { Text = "Fly Speed", Default = 50, Min = 16, Max = 750, Rounding = 0, Compact = true, Callback = function(v) S.FlySpeed = v end })
 
--- Gun
 local gunGroup = GunTab:AddLeftGroupbox("Gun Mods")
 gunGroup:AddToggle("Gun_AntiKatana", { Text = "Anti Katana", Default = false, Callback = function(v) S.AntiKatana = v end })
 gunGroup:AddToggle("Gun_NoCooldown", { Text = "No Cooldown", Default = false, Callback = function(v) S.NoCooldown = v end })
@@ -3590,7 +3513,6 @@ gunGroup:AddToggle("Gun_MaxAccuracy", { Text = "Max Accuracy", Default = false, 
 gunGroup:AddToggle("Gun_RapidAttack", { Text = "Rapid Attack", Default = false, Callback = function(v) S.RapidAttack = v end })
 gunGroup:AddToggle("Gun_NoMuzzleFlash", { Text = "No Muzzle Flash", Default = false, Callback = function(v) S.NoMuzzleFlash = v; updateMuzzleFlash() end })
 
--- Misc
 local deviceGroup = MiscTab:AddLeftGroupbox("Device Spoof")
 deviceGroup:AddToggle("Device_Spoof", { Text = "Enable", Default = false, Callback = function(v) S.DeviceSpoof = v; applyDeviceSpoof() end })
 deviceGroup:AddDropdown("Device_Type", { Text = "Type", Default = "PC", Values = {"PC","Console","Mobile","VR"}, Callback = function(v) S.DeviceType = v; if S.DeviceSpoof then applyDeviceSpoof() end end })
@@ -3613,7 +3535,6 @@ miscGroup:AddButton({ Text = "卸載腳本", Func = function()
     Library:Unload()
 end })
 
--- Auto
 local autoQueueGroup = AutoTab:AddLeftGroupbox("Auto Queue")
 autoQueueGroup:AddToggle("AutoQueue_Enabled", { Text = "Enable", Default = false, Callback = function(v) S.AutoQueueEnabled = v end })
 autoQueueGroup:AddDropdown("AutoQueue_Mode", { Text = "Mode", Default = "1v1", Values = {"1v1","2v2","3v3","4v4","5v5"}, Callback = function(v) S.AutoQueueMode = v end })
@@ -3624,6 +3545,8 @@ if SaveManager then
     pcall(function() SaveManager:BuildConfigSection(ConfigTab) end)
     pcall(function() SaveManager:LoadAutoloadConfig() end)
 end
+
+pcall(Rage.init)
 
 Library:Notify({ Title = "v3 Hub", Description = "v11.0 載入完成", Time = 4 })
 print("[v11.0] 完整載入完成")
