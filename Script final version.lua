@@ -1,7 +1,36 @@
 -- ============================================================
--- v3 Hub // RIVALS v10.4
--- v10.3 移除自動載入參數，保留自動執行 + 自動排隊
+-- v3 Hub // RIVALS v10.5
+-- v10.4 + 換服自動重跑
 -- ============================================================
+
+-- ★★★ 把下面這行改成你的腳本 raw URL ★★★
+local V3HUB_SELF_URL = "https://raw.githubusercontent.com/你的帳號/你的庫/main/v3hub.lua"
+
+-- 掛 queue_on_teleport，換服自動重跑
+task.spawn(function()
+    local ok = pcall(function()
+        local queueFn = queue_on_teleport
+            or (syn and syn.queue_on_teleport)
+            or (fluxus and fluxus.queue_on_teleport)
+
+        if not queueFn then
+            warn("[v3 Hub] 執行器不支援 queue_on_teleport，換服不會自動重跑")
+            return
+        end
+
+        if V3HUB_SELF_URL == "" or V3HUB_SELF_URL:find("你的帳號") then
+            warn("[v3 Hub] 請先填 V3HUB_SELF_URL")
+            return
+        end
+
+        queueFn("loadstring(game:HttpGet('" .. V3HUB_SELF_URL .. "'))()")
+        print("[v3 Hub] 換服自動重跑已掛載")
+    end)
+
+    if not ok then
+        warn("[v3 Hub] queue_on_teleport 掛載失敗")
+    end
+end)
 
 -- ========== 反封號 ==========
 local hookmetamethod = hookmetamethod
@@ -103,7 +132,6 @@ local FighterRemote = Replication and Replication:FindFirstChild("Fighter")
 local UseItem = FighterRemote and FighterRemote:FindFirstChild("UseItem")
 local SetControls = FighterRemote and FighterRemote:FindFirstChild("SetControls")
 
--- 動態取得 LocalFighter
 local _fighterCache = nil
 local _fighterCacheTime = 0
 local function getLocalFighter()
@@ -170,11 +198,6 @@ local S = {
     MaxDistance = 2000, HueSpeed = 0.25,
 
     TeamCheck = true, AntiAFK = true,
-
-    -- v10.4 自動化（移除自動載入參數）
-    AutoExecuteEnabled = true,
-    AutoExecuteDelay = 3,
-    AutoExecuteConfig = "",
 
     AutoQueueEnabled = false,
     AutoQueueMode = "1v1",
@@ -1430,7 +1453,7 @@ local ok = pcall(function()
     loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
 end)
 if not ok then
-    warn("[v10.4] Obsidian 載入失敗")
+    warn("[v10.5] Obsidian 載入失敗")
     return
 end
 local Library = getgenv().Library or getgenv().ObsidianLibrary
@@ -1465,7 +1488,7 @@ if SaveManager then
 end
 
 local Window = Library:CreateWindow({
-    Title = "v3 Hub // RIVALS v10.4",
+    Title = "v3 Hub // RIVALS v10.5",
     Footer = "v3 Hub | Obsidian GUI",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
@@ -1597,44 +1620,6 @@ miscGroup:AddButton({ Text = "卸載腳本", Func = function()
 end })
 
 -- ========== Auto Tab ==========
-local autoExecGroup = AutoTab:AddLeftGroupbox("自動執行腳本")
-
-autoExecGroup:AddToggle("AutoExec_Enabled", {
-    Text = "啟用自動執行",
-    Default = true,
-    Callback = function(v) S.AutoExecuteEnabled = v end
-})
-
-autoExecGroup:AddSlider("AutoExec_Delay", {
-    Text = "延遲（秒）",
-    Default = 3, Min = 0, Max = 30, Rounding = 1, Compact = true,
-    Callback = function(v) S.AutoExecuteDelay = v end
-})
-
-autoExecGroup:AddInput("AutoExec_ConfigName", {
-    Text = "要載入的 Config 名稱",
-    Default = "",
-    Finished = true,
-    Placeholder = "例如 default",
-    Callback = function(v) S.AutoExecuteConfig = v or "" end
-})
-
-local function runAutoExecute()
-    if not S.AutoExecuteEnabled then return end
-    task.wait(S.AutoExecuteDelay)
-    print("[v10.4] 自動執行觸發")
-    if SaveManager and S.AutoExecuteConfig ~= "" then
-        pcall(function() SaveManager:Load(S.AutoExecuteConfig) end)
-    end
-    pcall(function()
-        if getgenv().SyncAfterConfigLoad then
-            getgenv().SyncAfterConfigLoad()
-        end
-    end)
-end
-
-task.spawn(runAutoExecute)
-
 local autoQueueGroup = AutoTab:AddLeftGroupbox("自動開啟 1v1 排隊")
 
 autoQueueGroup:AddToggle("AutoQueue_Enabled", {
@@ -1793,5 +1778,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "v3 Hub", Description = "v10.4 自動載入參數已移除", Time = 4 })
-print("[v10.4] 完整載入完成")
+Library:Notify({ Title = "v3 Hub", Description = "v10.5 換服自動重跑已加入", Time = 4 })
+print("[v10.5] 完整載入完成")
