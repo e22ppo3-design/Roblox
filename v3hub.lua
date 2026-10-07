@@ -1,8 +1,4 @@
-標題：v11.0 第一段（共三段）
 
-Axiom：「開工。這是第一段：反封號 + 依賴函式 + ConstPatch + ViewAngle + Capability observer。收到後接第二段。」
-
-```lua
 -- ============================================================
 -- v3 Hub // RIVALS v11.0
 -- 完整版：Polar Rage + Aimbot + Linoria 風格設定
