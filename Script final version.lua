@@ -1,5 +1,5 @@
 -- ============================================================
--- AXIOM RIVALS v9.8 // 瞬移開關式持續鎖定
+-- AXIOM RIVALS v9.9 // 瞬移繞圈
 -- ============================================================
 
 -- ========== 反封號 ==========
@@ -36,7 +36,7 @@ if hookmetamethod and getrawmetatable and setreadonly then
         return oldNamecall(self, ...)
     end)
     pcall(function() setreadonly(mt, true) end)
-    print("[v9.8] Kick hook 已安裝")
+    print("[v9.9] Kick hook 已安裝")
 end
 
 task.spawn(function()
@@ -103,9 +103,9 @@ local FighterRemote = Replication and Replication:FindFirstChild("Fighter")
 local UseItem = FighterRemote and FighterRemote:FindFirstChild("UseItem")
 local SetControls = FighterRemote and FighterRemote:FindFirstChild("SetControls")
 
-print("[v9.8] Utility:", Utility ~= nil, "| EnumLibrary:", EnumLibrary ~= nil)
-print("[v9.8] Gun:", GunModule ~= nil, "| Melee:", MeleeModule ~= nil)
-print("[v9.8] UseItem:", UseItem ~= nil, "| SetControls:", SetControls ~= nil)
+print("[v9.9] Utility:", Utility ~= nil, "| EnumLibrary:", EnumLibrary ~= nil)
+print("[v9.9] Gun:", GunModule ~= nil, "| Melee:", MeleeModule ~= nil)
+print("[v9.9] UseItem:", UseItem ~= nil, "| SetControls:", SetControls ~= nil)
 
 -- ========== 設定 ==========
 local S = {
@@ -113,6 +113,9 @@ local S = {
     SilentAutoShoot = false, SilentFollowMuzzle = false, SilentWallCheck = true,
     Silent360 = false,
     BackshootEnabled = false,
+    OrbitSpeed = 3,
+    OrbitRadius = 5,
+    OrbitHeight = 1,
     AntiAimEnabled = false, AntiAimYaw = "jitter", AntiAimPitch = "jitter",
     AntiAimAngle = "none", AntiAimCustomAngle = 0,
     AntiAimMinSpeed = 10, AntiAimMaxSpeed = 20,
@@ -136,7 +139,7 @@ local S = {
 }
 
 local hasMouseMoveRel = type(mousemoverel) == "function"
-print("[v9.8] mousemoverel 支援:", hasMouseMoveRel)
+print("[v9.9] mousemoverel 支援:", hasMouseMoveRel)
 
 -- ========== 工具 ==========
 local function worldToScreen(pos, cam)
@@ -359,9 +362,10 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- ========== 瞬移到敵後（開關式持續）==========
+-- ========== 瞬移繞圈 ==========
 local backshoot = { connection = nil, target = nil, origCFrame = nil }
 local backshootMonitorConn = nil
+local orbit = { angle = 0 }
 
 local function closestPlayerBS()
     local best, bestD = nil, math.huge
@@ -380,15 +384,26 @@ end
 
 local function backshootLoop()
     if backshoot.connection then backshoot.connection:Disconnect() end
-    backshoot.connection = RunService.Heartbeat:Connect(function()
+    backshoot.connection = RunService.Heartbeat:Connect(function(dt)
         if not S.BackshootEnabled then return end
         local myChar = LP.Character
         if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
         if not backshoot.target then return end
         local tr = backshoot.target:FindFirstChild("HumanoidRootPart")
         if not tr then return end
-        local behind = tr.Position + (-tr.CFrame.LookVector * 5)
-        myChar.HumanoidRootPart.CFrame = CFrame.new(behind, tr.Position)
+
+        -- 繞圈：角度增加
+        orbit.angle = orbit.angle + S.OrbitSpeed * dt * math.pi * 2
+        if orbit.angle > math.pi * 2 then orbit.angle = orbit.angle - math.pi * 2 end
+
+        -- 圓周上的位置
+        local offset = Vector3.new(
+            math.cos(orbit.angle) * S.OrbitRadius,
+            S.OrbitHeight,
+            math.sin(orbit.angle) * S.OrbitRadius
+        )
+        local orbitPos = tr.Position + offset
+        myChar.HumanoidRootPart.CFrame = CFrame.new(orbitPos, tr.Position)
     end)
 end
 
@@ -422,6 +437,7 @@ local function startContinuousBackshoot()
             if target then
                 backshoot.target = target
                 backshoot.origCFrame = mc.HumanoidRootPart.CFrame
+                orbit.angle = 0
                 backshootLoop()
             end
         end
@@ -784,7 +800,7 @@ if GunModule and GunModule.StartShooting then
         if oldRecoil then self.Info.ShootRecoil = oldRecoil end
         return unpack(result)
     end
-    print("[v9.8] Gun 無散射 / 無後座 / 無冷卻 hook 已安裝")
+    print("[v9.9] Gun 無散射 / 無後座 / 無冷卻 hook 已安裝")
 end
 
 if GameplayUtility and GameplayUtility.GetSpread then
@@ -795,7 +811,7 @@ if GameplayUtility and GameplayUtility.GetSpread then
         end
         return origSpread(self, aimMultiplier, isAiming, isCrouching, pelletIndex, totalPellets, consistent)
     end
-    print("[v9.8] Gun GetSpread hook 已安裝")
+    print("[v9.9] Gun GetSpread hook 已安裝")
 end
 
 if MeleeModule and MeleeModule.StartShooting then
@@ -810,7 +826,7 @@ if MeleeModule and MeleeModule.StartShooting then
         if S.RapidAttack and oldCD then self.Info.AttackCooldown = oldCD end
         return unpack(result)
     end
-    print("[v9.8] Melee RapidAttack hook 已安裝")
+    print("[v9.9] Melee RapidAttack hook 已安裝")
 end
 
 local muzzleFlashConn = nil
@@ -1133,7 +1149,7 @@ local ok = pcall(function()
     loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
 end)
 if not ok then
-    warn("[v9.8] Obsidian 載入失敗")
+    warn("[v9.9] Obsidian 載入失敗")
     return
 end
 local Library = getgenv().Library or getgenv().ObsidianLibrary
@@ -1154,7 +1170,7 @@ pcall(function()
 end)
 
 local Window = Library:CreateWindow({
-    Title = "AXIOM // RIVALS v9.8",
+    Title = "AXIOM // RIVALS v9.9",
     Footer = "Grief.cc 功能 | Obsidian GUI",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
@@ -1203,10 +1219,10 @@ aimGroup:AddSlider("Aimbot_Deadzone", { Text = "滑鼠死區", Default = 2, Min 
 aimGroup:AddSlider("Aimbot_MaxStep", { Text = "單幀上限", Default = 200, Min = 10, Max = 500, Rounding = 0, Compact = true, Callback = function(v) S.MouseMaxStep = v end })
 aimGroup:AddSlider("Aimbot_Stuck", { Text = "卡住解鎖秒", Default = 3, Min = 0.5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.AimStuckTime = v end })
 
--- 瞬移敵後（開關式）
-local backGroup = CombatTab:AddRightGroupbox("瞬移敵後（Backshoot）")
+-- 瞬移繞圈
+local backGroup = CombatTab:AddRightGroupbox("瞬移繞圈（Orbit）")
 backGroup:AddToggle("Backshoot_Enabled", {
-    Text = "啟用瞬移（持續黏敵人）",
+    Text = "啟用繞圈（繞敵人轉）",
     Default = false,
     Callback = function(v)
         S.BackshootEnabled = v
@@ -1216,6 +1232,18 @@ backGroup:AddToggle("Backshoot_Enabled", {
             releaseBackshoot()
         end
     end
+})
+backGroup:AddSlider("Orbit_Speed", {
+    Text = "繞圈速度（圈/秒）", Default = 3, Min = 0.5, Max = 20, Rounding = 1, Compact = true,
+    Callback = function(v) S.OrbitSpeed = v end
+})
+backGroup:AddSlider("Orbit_Radius", {
+    Text = "繞圈半徑（格）", Default = 5, Min = 1, Max = 20, Rounding = 1, Compact = true,
+    Callback = function(v) S.OrbitRadius = v end
+})
+backGroup:AddSlider("Orbit_Height", {
+    Text = "繞圈高度", Default = 1, Min = -5, Max = 10, Rounding = 1, Compact = true,
+    Callback = function(v) S.OrbitHeight = v end
 })
 
 -- 反瞄準
@@ -1394,5 +1422,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "AXIOM v9.8", Description = "瞬移開關式持續鎖定", Time = 4 })
-print("[v9.8] 完整載入完成")
+Library:Notify({ Title = "AXIOM v9.9", Description = "瞬移繞圈（速度 3 圈/秒）", Time = 4 })
+print("[v9.9] 完整載入完成")
