@@ -1,5 +1,5 @@
 -- ============================================================
--- AXIOM RIVALS v10.0 // 加 SaveManager 儲存/載入
+-- AXIOM RIVALS v10.1 // SaveManager 修復版
 -- ============================================================
 
 -- ========== 反封號 ==========
@@ -36,7 +36,7 @@ if hookmetamethod and getrawmetatable and setreadonly then
         return oldNamecall(self, ...)
     end)
     pcall(function() setreadonly(mt, true) end)
-    print("[v10.0] Kick hook 已安裝")
+    print("[v10.1] Kick hook 已安裝")
 end
 
 task.spawn(function()
@@ -103,9 +103,9 @@ local FighterRemote = Replication and Replication:FindFirstChild("Fighter")
 local UseItem = FighterRemote and FighterRemote:FindFirstChild("UseItem")
 local SetControls = FighterRemote and FighterRemote:FindFirstChild("SetControls")
 
-print("[v10.0] Utility:", Utility ~= nil, "| EnumLibrary:", EnumLibrary ~= nil)
-print("[v10.0] Gun:", GunModule ~= nil, "| Melee:", MeleeModule ~= nil)
-print("[v10.0] UseItem:", UseItem ~= nil, "| SetControls:", SetControls ~= nil)
+print("[v10.1] Utility:", Utility ~= nil, "| EnumLibrary:", EnumLibrary ~= nil)
+print("[v10.1] Gun:", GunModule ~= nil, "| Melee:", MeleeModule ~= nil)
+print("[v10.1] UseItem:", UseItem ~= nil, "| SetControls:", SetControls ~= nil)
 
 -- ========== 設定 ==========
 local S = {
@@ -139,7 +139,7 @@ local S = {
 }
 
 local hasMouseMoveRel = type(mousemoverel) == "function"
-print("[v10.0] mousemoverel 支援:", hasMouseMoveRel)
+print("[v10.1] mousemoverel 支援:", hasMouseMoveRel)
 
 -- ========== 工具 ==========
 local function worldToScreen(pos, cam)
@@ -453,12 +453,8 @@ LP.CharacterRemoving:Connect(function()
     releaseBackshoot()
 end)
 
--- ========== 反瞄準（Anti-Aim）==========
-local antiAimState = {
-    frameCounter = 0,
-    smoothYaw = 0,
-    smoothPitch = 0,
-}
+-- ========== 反瞄準 ==========
+local antiAimState = { frameCounter = 0, smoothYaw = 0, smoothPitch = 0 }
 
 local function getRandomInRange(mn, mx)
     return mn + math.random() * (mx - mn)
@@ -693,7 +689,7 @@ local function updateCrosshair(t)
     end
 end
 
--- ========== Movement ==========
+-- ========== 移動 ==========
 local flyBP, flyBG = nil, nil
 local flyActive = false
 
@@ -763,7 +759,7 @@ UIS.JumpRequest:Connect(function()
     end
 end)
 
--- ========== Gun Mods ==========
+-- ========== 槍枝修改 ==========
 if GunModule and GunModule.StartShooting then
     local origGunShoot = GunModule.StartShooting
     GunModule.StartShooting = function(self, p26, p27)
@@ -792,7 +788,7 @@ if GunModule and GunModule.StartShooting then
         if oldRecoil then self.Info.ShootRecoil = oldRecoil end
         return unpack(result)
     end
-    print("[v10.0] Gun 無散射 / 無後座 / 無冷卻 hook 已安裝")
+    print("[v10.1] Gun 無散射 / 無後座 / 無冷卻 hook 已安裝")
 end
 
 if GameplayUtility and GameplayUtility.GetSpread then
@@ -803,7 +799,7 @@ if GameplayUtility and GameplayUtility.GetSpread then
         end
         return origSpread(self, aimMultiplier, isAiming, isCrouching, pelletIndex, totalPellets, consistent)
     end
-    print("[v10.0] Gun GetSpread hook 已安裝")
+    print("[v10.1] Gun GetSpread hook 已安裝")
 end
 
 if MeleeModule and MeleeModule.StartShooting then
@@ -818,7 +814,7 @@ if MeleeModule and MeleeModule.StartShooting then
         if S.RapidAttack and oldCD then self.Info.AttackCooldown = oldCD end
         return unpack(result)
     end
-    print("[v10.0] Melee RapidAttack hook 已安裝")
+    print("[v10.1] Melee RapidAttack hook 已安裝")
 end
 
 local muzzleFlashConn = nil
@@ -863,7 +859,7 @@ local function updateMuzzleFlash()
     end
 end
 
--- ========== Device Spoof ==========
+-- ========== 裝置偽裝 ==========
 local DEVICE_CODES = {
     ["Mobile"] = "Touch", ["Console"] = "Gamepad",
     ["VR"] = "VR", ["PC"] = "MouseKeyboard",
@@ -1141,18 +1137,26 @@ local ok = pcall(function()
     loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
 end)
 if not ok then
-    warn("[v10.0] Obsidian 載入失敗")
+    warn("[v10.1] Obsidian 載入失敗")
     return
 end
 local Library = getgenv().Library or getgenv().ObsidianLibrary
 if not Library then return end
 
+-- ========== 載入 addon（Grief.cc 寫法：直接全域賦值）==========
+ThemeManager = loadstring(game:HttpGet(ObsidianRepo .. "addons/ThemeManager.lua"))()
+SaveManager  = loadstring(game:HttpGet(ObsidianRepo .. "addons/SaveManager.lua"))()
+
+getgenv().ThemeManager = ThemeManager
+getgenv().SaveManager  = SaveManager
+_G.ThemeManager = ThemeManager
+_G.SaveManager  = SaveManager
+
+print("[v10.1] ThemeManager:", ThemeManager ~= nil)
+print("[v10.1] SaveManager:", SaveManager ~= nil)
+
 pcall(function()
-    loadstring(game:HttpGet(ObsidianRepo .. "addons/ThemeManager.lua"))()
-    loadstring(game:HttpGet(ObsidianRepo .. "addons/SaveManager.lua"))()
-end)
-pcall(function()
-    if getgenv().ThemeManager then
+    if ThemeManager then
         ThemeManager:SetLibrary(Library)
         ThemeManager:SetDefaultTheme({
             FontColor = "ffffff", MainColor = "232330", AccentColor = "426e87",
@@ -1161,8 +1165,8 @@ pcall(function()
     end
 end)
 
--- SaveManager 設定（Grief.cc 方式）
-if getgenv().SaveManager then
+-- ========== SaveManager 設定 ==========
+if SaveManager then
     pcall(function() SaveManager:SetLibrary(Library) end)
     pcall(function()
         if SaveManager.SetIgnoreIndexes then
@@ -1173,7 +1177,7 @@ if getgenv().SaveManager then
 end
 
 local Window = Library:CreateWindow({
-    Title = "AXIOM // RIVALS v10.0",
+    Title = "AXIOM // RIVALS v10.1",
     Footer = "Grief.cc 功能 | Obsidian GUI",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
@@ -1223,7 +1227,6 @@ aimGroup:AddSlider("Aimbot_Deadzone", { Text = "滑鼠死區", Default = 2, Min 
 aimGroup:AddSlider("Aimbot_MaxStep", { Text = "單幀上限", Default = 200, Min = 10, Max = 500, Rounding = 0, Compact = true, Callback = function(v) S.MouseMaxStep = v end })
 aimGroup:AddSlider("Aimbot_Stuck", { Text = "卡住解鎖秒", Default = 3, Min = 0.5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.AimStuckTime = v end })
 
--- 瞬移繞圈
 local backGroup = CombatTab:AddRightGroupbox("瞬移繞圈（Orbit）")
 backGroup:AddToggle("Backshoot_Enabled", {
     Text = "啟用繞圈（繞敵人轉）",
@@ -1237,20 +1240,10 @@ backGroup:AddToggle("Backshoot_Enabled", {
         end
     end
 })
-backGroup:AddSlider("Orbit_Speed", {
-    Text = "繞圈速度（圈/秒）", Default = 3, Min = 0.5, Max = 20, Rounding = 1, Compact = true,
-    Callback = function(v) S.OrbitSpeed = v end
-})
-backGroup:AddSlider("Orbit_Radius", {
-    Text = "繞圈半徑（格）", Default = 5, Min = 1, Max = 20, Rounding = 1, Compact = true,
-    Callback = function(v) S.OrbitRadius = v end
-})
-backGroup:AddSlider("Orbit_Height", {
-    Text = "繞圈高度", Default = 1, Min = -5, Max = 10, Rounding = 1, Compact = true,
-    Callback = function(v) S.OrbitHeight = v end
-})
+backGroup:AddSlider("Orbit_Speed", { Text = "繞圈速度（圈/秒）", Default = 3, Min = 0.5, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitSpeed = v end })
+backGroup:AddSlider("Orbit_Radius", { Text = "繞圈半徑（格）", Default = 5, Min = 1, Max = 20, Rounding = 1, Compact = true, Callback = function(v) S.OrbitRadius = v end })
+backGroup:AddSlider("Orbit_Height", { Text = "繞圈高度", Default = 1, Min = -5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.OrbitHeight = v end })
 
--- 反瞄準
 local antiGroup = CombatTab:AddRightGroupbox("反瞄準（Anti-Aim）")
 antiGroup:AddToggle("AntiAim_Enabled", {
     Text = "啟用反瞄準", Default = false,
@@ -1259,45 +1252,15 @@ antiGroup:AddToggle("AntiAim_Enabled", {
         updateAntiAim()
     end
 })
-antiGroup:AddDropdown("AntiAim_Yaw", {
-    Text = "Yaw", Default = "jitter",
-    Values = {"none","jitter","spinbot","random"},
-    Callback = function(v) S.AntiAimYaw = v end
-})
-antiGroup:AddDropdown("AntiAim_Pitch", {
-    Text = "Pitch", Default = "jitter",
-    Values = {"none","jitter","spinbot","random"},
-    Callback = function(v) S.AntiAimPitch = v end
-})
-antiGroup:AddDropdown("AntiAim_Angle", {
-    Text = "Angle", Default = "none",
-    Values = {"none","tilt 45","tilt 90","upside down","custom"},
-    Callback = function(v) S.AntiAimAngle = v end
-})
-antiGroup:AddSlider("AntiAim_CustomAngle", {
-    Text = "Custom Angle", Default = 0, Min = 0, Max = 360, Rounding = 1, Compact = true,
-    Callback = function(v) S.AntiAimCustomAngle = v end
-})
-antiGroup:AddSlider("AntiAim_MinSpeed", {
-    Text = "Min Speed", Default = 10, Min = 1, Max = 50, Rounding = 1, Compact = true,
-    Callback = function(v) S.AntiAimMinSpeed = v end
-})
-antiGroup:AddSlider("AntiAim_MaxSpeed", {
-    Text = "Max Speed", Default = 20, Min = 1, Max = 100, Rounding = 1, Compact = true,
-    Callback = function(v) S.AntiAimMaxSpeed = v end
-})
-antiGroup:AddSlider("AntiAim_MinAngle", {
-    Text = "Min Angle", Default = 30, Min = 1, Max = 180, Rounding = 1, Compact = true,
-    Callback = function(v) S.AntiAimMinAngle = v end
-})
-antiGroup:AddSlider("AntiAim_MaxAngle", {
-    Text = "Max Angle", Default = 60, Min = 1, Max = 180, Rounding = 1, Compact = true,
-    Callback = function(v) S.AntiAimMaxAngle = v end
-})
-antiGroup:AddToggle("AntiAim_RandomAngle", {
-    Text = "Random Angle", Default = false,
-    Callback = function(v) S.AntiAimRandomAngle = v end
-})
+antiGroup:AddDropdown("AntiAim_Yaw", { Text = "Yaw", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimYaw = v end })
+antiGroup:AddDropdown("AntiAim_Pitch", { Text = "Pitch", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimPitch = v end })
+antiGroup:AddDropdown("AntiAim_Angle", { Text = "Angle", Default = "none", Values = {"none","tilt 45","tilt 90","upside down","custom"}, Callback = function(v) S.AntiAimAngle = v end })
+antiGroup:AddSlider("AntiAim_CustomAngle", { Text = "Custom Angle", Default = 0, Min = 0, Max = 360, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimCustomAngle = v end })
+antiGroup:AddSlider("AntiAim_MinSpeed", { Text = "Min Speed", Default = 10, Min = 1, Max = 50, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMinSpeed = v end })
+antiGroup:AddSlider("AntiAim_MaxSpeed", { Text = "Max Speed", Default = 20, Min = 1, Max = 100, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMaxSpeed = v end })
+antiGroup:AddSlider("AntiAim_MinAngle", { Text = "Min Angle", Default = 30, Min = 1, Max = 180, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMinAngle = v end })
+antiGroup:AddSlider("AntiAim_MaxAngle", { Text = "Max Angle", Default = 60, Min = 1, Max = 180, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMaxAngle = v end })
+antiGroup:AddToggle("AntiAim_RandomAngle", { Text = "Random Angle", Default = false, Callback = function(v) S.AntiAimRandomAngle = v end })
 
 -- Visuals
 local espGroup = VisualsTab:AddLeftGroupbox("ESP")
@@ -1356,7 +1319,7 @@ miscGroup:AddButton({ Text = "卸載腳本", Func = function()
 end })
 
 -- ========== SaveManager 建構 Config 區塊 ==========
-if getgenv().SaveManager then
+if SaveManager then
     pcall(function()
         SaveManager:BuildConfigSection(ConfigTab)
     end)
@@ -1436,5 +1399,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "AXIOM v10.0", Description = "SaveManager 已加入", Time = 4 })
-print("[v10.0] 完整載入完成")
+Library:Notify({ Title = "AXIOM v10.1", Description = "SaveManager 修復完成", Time = 4 })
+print("[v10.1] 完整載入完成")
