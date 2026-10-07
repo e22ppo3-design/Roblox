@@ -1,7 +1,10 @@
 local V3HUB_SELF_URL = "https://raw.githubusercontent.com/e22ppo3-design/Roblox/main/v3hub.lua"
+
 task.spawn(function()
     local ok = pcall(function()
-        local queueFn = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
+        local queueFn = queue_on_teleport
+            or (syn and syn.queue_on_teleport)
+            or (fluxus and fluxus.queue_on_teleport)
         if not queueFn then return end
         if V3HUB_SELF_URL == "" or V3HUB_SELF_URL:find("你的帳號") then return end
         queueFn("loadstring(game:HttpGet('" .. V3HUB_SELF_URL .. "'))()")
@@ -245,7 +248,6 @@ local S = {
     Silent360 = false, SilentJitter = true, SilentAvoidDeflect = true,
     SilentStickiness = 0.05, SilentMultipoint = false, SilentMultipointCount = 5,
     SilentTorsoFallback = false, SilentBodyMix = 25, SilentJitterDeg = 1.5,
-
     AimEnabled = false, AimKey = "MB2", AimVisCheck = true,
     AimSmoothness = 0, AimSmoothnessX = 0, AimSmoothnessY = 0, AimLinkAxes = true,
     AimJumpDamping = 40, AimCancelSprings = true,
@@ -257,7 +259,6 @@ local S = {
     AimShotOverride = false, AimShowFOV = false, AimShowLock = false,
     AimDebug = false, AimReactionMs = 0, AimNoiseDeg = 0, AimOvershoot = 0,
     AimDirectCamera = false,
-
     RageEnabled = false, RageMode = "Polar",
     RageDirectFire = true, RageRateLimit = false, RageTaps = 6, RageTapsPerFrame = 1,
     RageVoidMove = true, RageVoidDepth = "deep", RageVoidMinStep = 25000,
@@ -277,13 +278,11 @@ local S = {
     RageOnEmpty = "Swap", RagePreferredSlot = "Primary",
     RageSwitchMelee = false, RageSwitchRateLimit = 0.06,
     RageFireRateOverride = 0, RageEyeMuzzleClamp = true,
-
     AntiAimEnabled = false, AntiAimYaw = "jitter", AntiAimPitch = "jitter",
     AntiAimAngle = "none", AntiAimCustomAngle = 0,
     AntiAimMinSpeed = 10, AntiAimMaxSpeed = 20,
     AntiAimMinAngle = 30, AntiAimMaxAngle = 60,
     AntiAimRandomAngle = false,
-
     ESPEnabled = true, ESPShowName = true, ESPShowDistance = true,
     ESPShowHealth = true, ESPShowTracer = true, ESPShowSkeleton = true,
     ESPMaxDistance = 1200, ESPTeamCheck = true,
@@ -315,23 +314,17 @@ local S = {
     ESPFlagDeflect = true, ESPFlagShield = true,
     ESPFlagInvincible = true, ESPFlagLowHP = true, ESPFlagStaring = false,
     ESPMaxPlayers = 0, ESPFadeIn = true, ESPDeclutter = true,
-
     CrosshairEnabled = false, CrosshairColor = Color3.fromRGB(0, 200, 255),
     CrosshairShowLines = true, CrosshairSpinSpeed = 150, CrosshairMode = "static",
-
     InfJump = false, JumpPower = 50, WalkSpeed = 16,
     FlyEnabled = false, FlySpeed = 50, Noclip = false,
-
     NoCooldown = false, NoSpread = false, NoRecoil = false,
     MaxAccuracy = false, RapidAttack = false, NoMuzzleFlash = false,
     AntiKatana = false,
-
     DeviceSpoof = false, DeviceType = "PC",
     TeamCheck = true, AntiAFK = true,
-
     AutoQueueEnabled = false, AutoQueueMode = "1v1",
     AutoQueueRanked = false, AutoQueueDelay = 2,
-
     FXHitMarker = true,
     FXHitMarkerColor = Color3.fromRGB(255, 255, 255),
     FXHitMarkerCritColor = Color3.fromRGB(255, 194, 75),
@@ -628,6 +621,7 @@ local function identityIsSafe()
 end
 
 local function atId2(fn, ...)
+    State.CapabilitySeam = "atId2"
     if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
     local done, ok, res = false, false, nil
     task.spawn(function()
@@ -643,6 +637,7 @@ local function atId2(fn, ...)
 end
 
 local function atId8(fn, ...)
+    State.CapabilitySeam = "atId8"
     if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
     local done, ok, res = false, false, nil
     task.spawn(function()
@@ -659,12 +654,18 @@ end
 
 local _identityIsSafeFn = (function()
     local latched, killed = nil, false
+    local _seamShown = {}
     State.CapabilityObserver = false
     pcall(function()
         game:GetService("LogService").MessageOut:Connect(function(msg)
             if type(msg) ~= "string" or not string.find(msg, "lacking capability", 1, true) then return end
             State.CapabilityErrors = (State.CapabilityErrors or 0) + 1
             State.CapabilityLastStatus = tostring(State.RageStatus)
+            local seam = tostring(State.CapabilitySeam or "unlabelled")
+            if _seamShown[seam] == nil then
+                _seamShown[seam] = true
+                print("[v11.0] CAPABILITY ERROR while: " .. seam .. "   (rage status: " .. tostring(State.RageStatus) .. ")")
+            end
             if not killed then
                 killed = true
                 State.CapabilityKilledAt = tostring(State.RageStatus)
@@ -685,10 +686,10 @@ end)()
 local ConstPatch = {}
 ;(function()
     local _getconstants = getconstants or (debugLib and debugLib.getconstants)
-    local _setconstant = setconstant or (debugLib and debugLib.setconstant)
-    local _getprotos = getprotos or (debugLib and debugLib.getprotos)
-    local _getproto = getproto or (debugLib and debugLib.getproto)
-    local HAVE_CONST = type(_getconstants) == "function" and type(_setconstant) == "function"
+    local _setconstant  = setconstant  or (debugLib and debugLib.setconstant)
+    local _getprotos    = getprotos    or (debugLib and debugLib.getprotos)
+    local _getproto     = getproto     or (debugLib and debugLib.getproto)
+    local HAVE_CONST  = type(_getconstants) == "function" and type(_setconstant) == "function"
     local HAVE_PROTOS = type(_getprotos) == "function" and type(_getproto) == "function"
     local _sets = {}
     local function ledger(create)
@@ -702,8 +703,10 @@ local ConstPatch = {}
         return t
     end
     local HASH_SEED = 5381
-    local STR_CAP = 256
-    local function hashByte(h, b) return bit32.band(bit32.lshift(h, 5) + h + b, 0xFFFFFFFF) end
+    local STR_CAP   = 256
+    local function hashByte(h, b)
+        return bit32.band(bit32.lshift(h, 5) + h + b, 0xFFFFFFFF)
+    end
     local function hashString(h, s)
         local n = #s
         h = hashByte(h, bit32.band(n, 0xFF))
@@ -946,6 +949,7 @@ local ViewAngle = {}
         if on == _suppressed then return end
         if on then
             if not resolveLoop() then return end
+            State.CapabilitySeam = "08c viewangle debug.setupvalue"
             if pcall(debugLib.setupvalue, _loopFn, _utilIdx, makeShim()) then
                 _suppressed = true
                 State.ViewAngleForged = true
@@ -1020,7 +1024,7 @@ local ViewAngle = {}
     ViewAngle.isForging = function() return _forged ~= nil end
 end)()
 
-print("[v11.0] 第一段載入完成")local _sharedVelMap = {}
+local _sharedVelMap = {}
 do
     local _svPos, _svTime = {}, {}
     local _svAccum = 0
@@ -1639,9 +1643,11 @@ local PolarCore = {}
     local _notified = nil
     local _conn, _stepConn, _charConn = nil, nil, nil
     local RENDER_NAME = "v3Hub_Polar_Restore"
+    local CAMERA_NAME = "v3Hub_Polar_CamAnchor"
     local VOID_R_MIN, VOID_R_MAX = 110000, 140000
     local VOID_MIN_STEP = 25000
     local VOID_MOVE = true
+    local HIDE_WHEN_UNREACHABLE = true
     local DEFLECT_MAX_HOLD = 1.5
     local IMMUNE_MAX_HOLD = 6.0
     local _immuneSince = 0
@@ -1650,6 +1656,7 @@ local PolarCore = {}
     local EYE_UP_SANE = 2.5
     local KILL_PLANE_BUF = 200
     local RAGE_CLAMP_FRAC = 0.30
+    local PARK_UP_STUDS = 12
     local _preParkCF = nil
     local FFLAGS_ON = { DFIntS2PhysicsSenderRate = "120", DFIntAssemblyHistoryBufferSize = "2147483648", DFIntAssemblyHistorySkipSize = "0" }
     local FFLAGS_OFF = { DFIntS2PhysicsSenderRate = "15", DFIntAssemblyHistoryBufferSize = "15", DFIntAssemblyHistorySkipSize = "8" }
@@ -1725,10 +1732,12 @@ local PolarCore = {}
         local want = on and FFLAGS_ON or FFLAGS_OFF
         local threw = false
         local keyOk = false
+        local detail = ""
         for name, value in want do
             local wrote = pcall(set, name, value)
             if not wrote then threw = true end
             if name == "DFIntAssemblyHistorySkipSize" and wrote then keyOk = true end
+            detail = detail .. string.sub(name, 5) .. "=" .. (wrote and "ok" or "THREW") .. " "
         end
         _physSet = on and not threw
         _physLive = _physSet and keyOk and fpdhOk
@@ -1791,6 +1800,7 @@ local PolarCore = {}
         return cf
     end
     local function rawSetCFrame(hrp, cf)
+        State.CapabilitySeam = "polar park write"
         identEnsure()
         if _identSet ~= nil and identityIsSafe() then
             local wrote = false
@@ -2105,7 +2115,7 @@ local Aimbot = {}
     local SEED_DY = 1.0
     local _bound = false
     local _mouseMove = mousemoverel
-    local _fovC, _lockC, _dbgT = nil, nil, nil
+    local _fovC, _lockC = nil, nil
     local _tgt, _part = nil, nil
     local _prevTgt = nil
     local _notified = nil
@@ -2600,7 +2610,7 @@ local Aimbot = {}
     function Aimbot.hasMouseMove() return _mouseMove ~= nil end
 end)()
 
-print("[v11.0] 第二段載入完成")local silentLastFire = 0
+local silentLastFire = 0
 local silentFireCD = 0.01
 local raySilent = RaycastParams.new()
 raySilent.FilterType = Enum.RaycastFilterType.Blacklist
@@ -2706,7 +2716,9 @@ UIS.InputBegan:Connect(function(input, gpe)
 end)
 
 local antiAimState = { frameCounter = 0, smoothYaw = 0, smoothPitch = 0 }
-local function getRandomInRange(mn, mx) return mn + math.random() * (mx - mn) end
+local function getRandomInRange(mn, mx)
+    return mn + math.random() * (mx - mn)
+end
 local function calcAntiAimYaw()
     local yaw = 0
     local currentTime = tick()
@@ -3545,8 +3557,6 @@ if SaveManager then
     pcall(function() SaveManager:BuildConfigSection(ConfigTab) end)
     pcall(function() SaveManager:LoadAutoloadConfig() end)
 end
-
-pcall(Rage.init)
 
 Library:Notify({ Title = "v3 Hub", Description = "v11.0 載入完成", Time = 4 })
 print("[v11.0] 完整載入完成")
