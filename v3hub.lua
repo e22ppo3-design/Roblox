@@ -1,10 +1,12 @@
+-- ============================================================
+-- v3 Hub // RIVALS v11.0
+-- ============================================================
+
 local V3HUB_SELF_URL = "https://raw.githubusercontent.com/e22ppo3-design/Roblox/main/v3hub.lua"
 
 task.spawn(function()
     local ok = pcall(function()
-        local queueFn = queue_on_teleport
-            or (syn and syn.queue_on_teleport)
-            or (fluxus and fluxus.queue_on_teleport)
+        local queueFn = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
         if not queueFn then return end
         if V3HUB_SELF_URL == "" or V3HUB_SELF_URL:find("你的帳號") then return end
         queueFn("loadstring(game:HttpGet('" .. V3HUB_SELF_URL .. "'))()")
@@ -48,9 +50,7 @@ local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
 local StatsService = game:GetService("Stats")
 
-W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-    C = W.CurrentCamera
-end)
+W:GetPropertyChangedSignal("CurrentCamera"):Connect(function() C = W.CurrentCamera end)
 
 do
     if getgenvFn and hookfunction and newcclosure and getrenv then
@@ -130,9 +130,7 @@ end)
 if hookmetamethod then
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
-        if checkcaller() and key == "Kick" and self == LP then
-            return function() end
-        end
+        if checkcaller() and key == "Kick" and self == LP then return function() end end
         return oldIndex(self, key)
     end)
 end
@@ -224,9 +222,7 @@ local function getLocalFighter()
     if _fighterCache and (now - _fighterCacheTime) < 0.25 and _fighterCache.EquippedItem ~= nil then
         return _fighterCache
     end
-    local ok, fc = pcall(function()
-        return require(LP.PlayerScripts.Controllers.FighterController)
-    end)
+    local ok, fc = pcall(function() return require(LP.PlayerScripts.Controllers.FighterController) end)
     if ok and fc and fc.LocalFighter then
         _fighterCache = fc.LocalFighter
         _fighterCacheTime = now
@@ -703,10 +699,8 @@ local ConstPatch = {}
         return t
     end
     local HASH_SEED = 5381
-    local STR_CAP   = 256
-    local function hashByte(h, b)
-        return bit32.band(bit32.lshift(h, 5) + h + b, 0xFFFFFFFF)
-    end
+    local STR_CAP = 256
+    local function hashByte(h, b) return bit32.band(bit32.lshift(h, 5) + h + b, 0xFFFFFFFF) end
     local function hashString(h, s)
         local n = #s
         h = hashByte(h, bit32.band(n, 0xFF))
@@ -765,7 +759,7 @@ local ConstPatch = {}
         local ok, consts = pcall(_getconstants, fn)
         if not ok or type(consts) ~= "table" then return nil, "getconstants failed" end
         if src.index ~= nil then
-            if src.expect == nil then return nil, "index mode needs expect" end
+            if src.expect == nil then return nil, "index needs expect" end
             local cur = consts[src.index]
             if cur == nil then return nil, "no const at " .. tostring(src.index) end
             if cur ~= src.expect then return nil, "index holds " .. tostring(cur) end
@@ -778,13 +772,13 @@ local ConstPatch = {}
         return hits
     end
     local function validateSource(src)
-        if type(src) ~= "table" then return "not a table" end
+        if type(src) ~= "table" then return "not table" end
         if type(src.name) ~= "string" then return "needs name" end
         if type(src.fn) ~= "function" and type(src.holder) ~= "table" then return "needs fn or holder" end
-        if (src.target == nil) == (src.index == nil) then return "needs exactly one of target/index" end
+        if (src.target == nil) == (src.index == nil) then return "needs one of target/index" end
         if src.new == nil then return "needs new" end
         if src.scan ~= nil and src.scan ~= "self" and src.scan ~= "protos" then return "bad scan" end
-        if src.index ~= nil and src.scan == "protos" then return "index cannot combine protos" end
+        if src.index ~= nil and src.scan == "protos" then return "index cannot combine" end
         return nil
     end
     local Set = {}
@@ -795,8 +789,8 @@ local ConstPatch = {}
         return set
     end
     function Set:Apply()
-        if not HAVE_CONST then return false, "no debug.getconstants" end
-        if self.restores then return false, self.name .. ": already applied" end
+        if not HAVE_CONST then return false, "no getconstants" end
+        if self.restores then return false, "already applied" end
         local plan = {}
         for _, src in self.sources do
             local label = self.name .. "/" .. tostring(src.name or "?")
@@ -884,9 +878,7 @@ local ViewAngle = {}
     local _joints, _jointsOrig = nil, nil
 
     local function remote()
-        if _remote == nil then
-            pcall(function() _remote = UpdateCameraRotation end)
-        end
+        if _remote == nil then pcall(function() _remote = UpdateCameraRotation end) end
         return _remote
     end
 
@@ -1095,11 +1087,9 @@ local DEFLECT_ANIM_IDS = {
     ["92502373956550"]=true,["83541611040586"]=true,["92773106977434"]=true,["75844592081515"]=true,
     ["75381142568185"]=true,
 }
-
 local _deflecting, _deflGen = {}, {}
 local _deflHookLive = false
 local DEFLECT_CLEAR_PAD = 0.05
-
 local function isDeflectingAnim(player)
     if not player or not player.Character then return false end
     local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -1117,14 +1107,12 @@ local function isDeflectingAnim(player)
     end
     return false
 end
-
 local function isDeflecting(player)
     if not player then return false end
     if _deflecting[player.UserId] then return true end
     if _deflHookLive then return false end
     return isDeflectingAnim(player)
 end
-
 ;(function()
     local function recordDeflect(self)
         local fighter = self and self.ClientFighter
@@ -1211,7 +1199,6 @@ local function isKatana(player)
     end
     return isDeflecting(player)
 end
-
 local function isLocalKnife()
     local lf = getLocalFighter()
     if lf and lf.EquippedItem then
@@ -1222,7 +1209,6 @@ local function isLocalKnife()
     end
     return false
 end
-
 local function isEnemyKnife(player)
     if not player then return false end
     local w = getWeaponName(player):lower()
@@ -1231,13 +1217,11 @@ local function isEnemyKnife(player)
     end
     return false
 end
-
 local function isRiotShield(player)
     local w = getWeaponName(player):lower()
     return w:find("riot shield") or w:find("energy shield") or w:find("tombstone shield")
         or w:find("broken surfboard", 1, true) or w == "door" or w == "sled" or w == "masterpiece"
 end
-
 local function ownsRiotShield(player)
     if not player then return false end
     local ok, res = pcall(function()
@@ -1472,15 +1456,6 @@ local Rage = {}
         local a = itemAmmo(it)
         return a == nil or a > 0
     end
-    local function nextUsableSlot(excludeIdx)
-        local pref = PICK_SLOT[S.RagePreferredSlot] or 1
-        local order = { pref }
-        for _, s in ipairs({ 1, 2, 3 }) do if s ~= pref and (S.RageSwitchMelee or s ~= 3) then order[#order+1] = s end end
-        for _, s in ipairs(order) do
-            if s ~= excludeIdx and slotUsable(s) then return s end
-        end
-        return nil
-    end
     local function equipSlot(idx)
         if not idx then return false end
         if whichSlotNow() == idx then return true end
@@ -1489,9 +1464,7 @@ local Rage = {}
         State.RageSwitchLast = now
         local lf = getLocalFighter()
         local equipped = false
-        if lf and lf.EquipItem then
-            equipped = pcall(function() lf:EquipItem(idx) end)
-        end
+        if lf and lf.EquipItem then equipped = pcall(function() lf:EquipItem(idx) end) end
         if not equipped then
             pcall(function()
                 local kc = ({ Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three })[idx]
@@ -1528,9 +1501,7 @@ local Rage = {}
             if tick() - (State.RageReloadLast or 0) < 0.5 then return "throttled" end
             State.RageReloadLast = tick()
             local lf = getLocalFighter()
-            if lf then
-                pcall(function() lf:Input("StartReloading") end)
-            end
+            if lf then pcall(function() lf:Input("StartReloading") end) end
             pcall(function() it:StartReloading() end)
             return "requested"
         end
@@ -1643,11 +1614,9 @@ local PolarCore = {}
     local _notified = nil
     local _conn, _stepConn, _charConn = nil, nil, nil
     local RENDER_NAME = "v3Hub_Polar_Restore"
-    local CAMERA_NAME = "v3Hub_Polar_CamAnchor"
     local VOID_R_MIN, VOID_R_MAX = 110000, 140000
     local VOID_MIN_STEP = 25000
     local VOID_MOVE = true
-    local HIDE_WHEN_UNREACHABLE = true
     local DEFLECT_MAX_HOLD = 1.5
     local IMMUNE_MAX_HOLD = 6.0
     local _immuneSince = 0
@@ -1656,7 +1625,6 @@ local PolarCore = {}
     local EYE_UP_SANE = 2.5
     local KILL_PLANE_BUF = 200
     local RAGE_CLAMP_FRAC = 0.30
-    local PARK_UP_STUDS = 12
     local _preParkCF = nil
     local FFLAGS_ON = { DFIntS2PhysicsSenderRate = "120", DFIntAssemblyHistoryBufferSize = "2147483648", DFIntAssemblyHistorySkipSize = "0" }
     local FFLAGS_OFF = { DFIntS2PhysicsSenderRate = "15", DFIntAssemblyHistoryBufferSize = "15", DFIntAssemblyHistorySkipSize = "8" }
@@ -1668,9 +1636,7 @@ local PolarCore = {}
     local function fflagApi()
         local set, get, name = nil, nil, "none"
         pcall(function()
-            if type(setfflag) == "function" then
-                set, name = setfflag, "setfflag"
-            end
+            if type(setfflag) == "function" then set, name = setfflag, "setfflag" end
             if type(getfflag) == "function" then get = getfflag end
         end)
         return set, get, name
@@ -1678,10 +1644,7 @@ local PolarCore = {}
     local function writeFPDH(value)
         if _fpdhDead then return false, "refused earlier" end
         if not identityIsSafe() then return false, "identity off" end
-        if not _fpdhIdTried then
-            _fpdhIdTried = true
-            identEnsure()
-        end
+        if not _fpdhIdTried then _fpdhIdTried = true; identEnsure() end
         if _identSet == nil then return false, "no identity API" end
         local wrote = false
         task.spawn(function()
@@ -1690,12 +1653,8 @@ local PolarCore = {}
             if not pcall(_identSet, 8) then return end
             local sp = sethiddenproperty
             local wroteVia = false
-            if type(sp) == "function" then
-                wroteVia = pcall(sp, W, "FallenPartsDestroyHeight", value)
-            end
-            if not wroteVia then
-                pcall(function() W.FallenPartsDestroyHeight = value end)
-            end
+            if type(sp) == "function" then wroteVia = pcall(sp, W, "FallenPartsDestroyHeight", value) end
+            if not wroteVia then pcall(function() W.FallenPartsDestroyHeight = value end) end
             pcall(_identSet, prev)
             local okR, v = pcall(function() return W.FallenPartsDestroyHeight end)
             if okR then
@@ -1716,8 +1675,7 @@ local PolarCore = {}
             _fpdhOriginal = prev
         end
         local fpdhOk, fpdhHow
-        if on then
-            fpdhOk, fpdhHow = writeFPDH(0/0)
+        if on then fpdhOk, fpdhHow = writeFPDH(0/0)
         else
             local okBack, howBack = writeFPDH(_fpdhOriginal)
             fpdhHow = "restored=" .. tostring(okBack) .. " " .. tostring(howBack)
@@ -1860,9 +1818,7 @@ local PolarCore = {}
             _useItem, _shootEnum = nil, nil
             State.CapabilityRecoveries = (State.CapabilityRecoveries or 0) + 1
         end
-        if _shootEnum == nil then
-            pcall(function() _shootEnum = EnumLibrary:ToEnum("StartShooting") end)
-        end
+        if _shootEnum == nil then pcall(function() _shootEnum = EnumLibrary:ToEnum("StartShooting") end) end
         if _shootEnum == nil then State.RageFireWhy = "no enum"; return 0 end
         if _useItem == nil then
             pcall(function() _useItem = Replication and Replication.Fighter and Replication.Fighter.UseItem end)
@@ -1895,16 +1851,13 @@ local PolarCore = {}
     end
     local function polarTick(ch, hrp)
         local tgt = _target
-        if tgt and (not tgt.Parent or not tgt.Character or not isAlive(tgt) or isTeammate(tgt)) then
-            tgt = nil
-        end
+        if tgt and (not tgt.Parent or not tgt.Character or not isAlive(tgt) or isTeammate(tgt)) then tgt = nil end
         if not tgt then tgt = Rage._findTarget() end
         _target = tgt
         State.RageTarget = tgt
         if not tgt or not tgt.Character then return hide(hrp, "No target") end
         local holdFire = isSpawnProtected(tgt) and S.RageSkipImmune
-        if not holdFire then
-            _immuneSince, _immuneTgt = 0, nil
+        if not holdFire then _immuneSince, _immuneTgt = 0, nil
         else
             local now = tick()
             if _immuneTgt ~= tgt then _immuneSince, _immuneTgt = now, tgt end
@@ -1917,9 +1870,7 @@ local PolarCore = {}
             local now = tick()
             if _deflectSince == 0 then _deflectSince = now end
             if now - _deflectSince < DEFLECT_MAX_HOLD then return hide(hrp, "Deflecting") end
-        else
-            _deflectSince = 0
-        end
+        else _deflectSince = 0 end
         local it = getEquippedItem()
         if not Rage._weaponReady(it) then
             local act = Rage._weaponRecovery(it)
@@ -1966,9 +1917,7 @@ local PolarCore = {}
         else
             State.RageFireFrames = (State.RageFireFrames or 0) + 1
         end
-        if _notified ~= tgt then
-            _notified = tgt
-        end
+        if _notified ~= tgt then _notified = tgt end
     end
     local function restoreHome(pin)
         local ch = LP.Character
@@ -1976,13 +1925,9 @@ local PolarCore = {}
         if not hrp or not hrp.Parent then return end
         local back = _preParkCF
         _preParkCF = nil
-        pcall(function()
-            if back then hrp.CFrame = back end
-        end)
+        pcall(function() if back then hrp.CFrame = back end end)
     end
-    Players.PlayerRemoving:Connect(function(p)
-        State.RageTrueVelocityMap[p] = nil
-    end)
+    Players.PlayerRemoving:Connect(function(p) State.RageTrueVelocityMap[p] = nil end)
     function PolarCore.start()
         if _conn then return end
         _firing = false
@@ -2168,7 +2113,7 @@ local Aimbot = {}
     end
     local function minJerk(s)
         s = math.clamp(s, 0, 1)
-        return s * s * s * (10 + s * (-15 + 6 * s))
+        return s*s*s*(10 + s*(-15 + 6*s))
     end
     local function bezier(p0, p1, p2, p3, t)
         local it = 1 - t
@@ -2587,29 +2532,6 @@ local Aimbot = {}
             pcall(step, dt)
         end)
         _bound = true
-    end
-    function Aimbot.disable()
-        S.AimEnabled = false
-        State.AimbotKeyHeld = false
-        clearTarget()
-        _sx, _sy, _fx, _fy = 0, 0, 0, 0
-        _haveCam, _ramp, _notified = false, 0, nil
-        _auth = 1.0
-        if _bound then
-            pcall(function() RunService:UnbindFromRenderStep("v3Hub_Aimbot") end)
-            _bound = false
-        end
-        if _fovC then _fovC.Visible = false end
-        if _lockC then _lockC.Visible = false end
-    end
-    function Aimbot.unload()
-        Aimbot.disable()
-        if _fovC then pcall(function() _fovC:Remove() end); _fovC = nil end
-        if _lockC then pcall(function() _lockC:Remove() end); _lockC = nil end
-    end
-    function Aimbot.hasMouseMove() return _mouseMove ~= nil end
-end)()
-
 local silentLastFire = 0
 local silentFireCD = 0.01
 local raySilent = RaycastParams.new()
@@ -2654,7 +2576,7 @@ local function findSilentTarget()
         end
         return best
     end
-    local tgt, part = selectTarget({
+    local tgt = selectTarget({
         fov = S.SilentFOV,
         checkVis = S.SilentWallCheck,
         partMode = S.SilentHitPart,
@@ -2701,9 +2623,7 @@ local function silentAutoFireLoop()
 end
 
 RunService.Heartbeat:Connect(function()
-    if S.SilentEnabled and S.SilentAutoShoot then
-        pcall(silentAutoFireLoop)
-    end
+    if S.SilentEnabled and S.SilentAutoShoot then pcall(silentAutoFireLoop) end
 end)
 
 UIS.InputBegan:Connect(function(input, gpe)
@@ -2716,9 +2636,7 @@ UIS.InputBegan:Connect(function(input, gpe)
 end)
 
 local antiAimState = { frameCounter = 0, smoothYaw = 0, smoothPitch = 0 }
-local function getRandomInRange(mn, mx)
-    return mn + math.random() * (mx - mn)
-end
+local function getRandomInRange(mn, mx) return mn + math.random() * (mx - mn) end
 local function calcAntiAimYaw()
     local yaw = 0
     local currentTime = tick()
@@ -2964,6 +2882,7 @@ local function updateESP()
                                 local wPx = hPx * 0.5 * S.ESPBoxScale
                                 local cx = (rpV.X + hpV.X) / 2
                                 local cy = (rpV.Y + hpV.Y) / 2
+                                local co = Color3.fromHSV((tGlobal * 0.25 + dist/2000*0.3) % 1, 1, 1)
 
                                 d.holder.Position = UDim2.fromOffset(math.floor(cx - wPx/2), math.floor(cy - hPx/2))
                                 d.holder.Size = UDim2.fromOffset(math.floor(wPx), math.floor(hPx))
@@ -3244,9 +3163,7 @@ local function updateMuzzleFlash()
     end
 end
 
-local DEVICE_CODES = {
-    ["Mobile"]="Touch",["Console"]="Gamepad",["VR"]="VR",["PC"]="MouseKeyboard",
-}
+local DEVICE_CODES = { ["Mobile"]="Touch",["Console"]="Gamepad",["VR"]="VR",["PC"]="MouseKeyboard" }
 local function applyDeviceSpoof()
     if not SetControls or not S.DeviceSpoof then return end
     local code = DEVICE_CODES[S.DeviceType] or "MouseKeyboard"
@@ -3335,16 +3252,12 @@ local ObsidianRepo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/r
 local ok = pcall(function()
     loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
 end)
-if not ok then
-    warn("[v11.0] Obsidian 載入失敗")
-    return
-end
+if not ok then warn("[v11.0] Obsidian 載入失敗") return end
 local Library = getgenv().Library or getgenv().ObsidianLibrary
 if not Library then return end
 
 ThemeManager = loadstring(game:HttpGet(ObsidianRepo .. "addons/ThemeManager.lua"))()
 SaveManager = loadstring(game:HttpGet(ObsidianRepo .. "addons/SaveManager.lua"))()
-
 getgenv().ThemeManager = ThemeManager
 getgenv().SaveManager = SaveManager
 _G.ThemeManager = ThemeManager
@@ -3359,7 +3272,6 @@ pcall(function()
         })
     end
 end)
-
 if SaveManager then
     pcall(function() SaveManager:SetLibrary(Library) end)
     pcall(function()
@@ -3383,29 +3295,17 @@ local AutoTab = Window:AddTab("Auto", "zap")
 local ConfigTab = Window:AddTab("Configs", "save")
 
 local silentGroup = CombatTab:AddLeftGroupbox("Silent Aim")
-silentGroup:AddToggle("Silent_Enabled", {
-    Text = "Enable Silent Aim", Default = false,
-    Callback = function(v) S.SilentEnabled = v end
-}):AddKeyPicker("Silent_Key", {
-    Text = "Silent Aim", Default = "None", Mode = "Toggle", NoUI = true,
-    SyncToggleState = true, Callback = function(state) S.SilentEnabled = state end
-})
+silentGroup:AddToggle("Silent_Enabled", { Text = "Enable Silent Aim", Default = false, Callback = function(v) S.SilentEnabled = v end }):AddKeyPicker("Silent_Key", { Text = "Silent Aim", Default = "None", Mode = "Toggle", NoUI = true, SyncToggleState = true, Callback = function(state) S.SilentEnabled = state end })
 silentGroup:AddToggle("Silent_AutoShoot", { Text = "Auto Shoot", Default = false, Callback = function(v) S.SilentAutoShoot = v end })
 silentGroup:AddToggle("Silent_WallCheck", { Text = "Wall Check", Default = true, Callback = function(v) S.SilentWallCheck = v end })
 silentGroup:AddToggle("Silent_360", { Text = "360 Mode", Default = false, Callback = function(v) S.Silent360 = v end })
-silentGroup:AddDropdown("Silent_HitPart", {
-    Text = "Hit Part", Default = "Head",
-    Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"},
-    Callback = function(v) S.SilentHitPart = v end
-})
+silentGroup:AddDropdown("Silent_HitPart", { Text = "Hit Part", Default = "Head", Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"}, Callback = function(v) S.SilentHitPart = v end })
 silentGroup:AddSlider("Silent_FOV", { Text = "FOV Radius", Default = 150, Min = 10, Max = 800, Rounding = 0, Compact = true, Callback = function(v) S.SilentFOV = v end })
 silentGroup:AddSlider("Silent_HitChance", { Text = "Hit Chance %", Default = 100, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) S.SilentHitChance = v end })
 silentGroup:AddToggle("Silent_FollowMuzzle", { Text = "Follow Muzzle", Default = false, Callback = function(v) S.SilentFollowMuzzle = v end })
 
 local aimGroup = CombatTab:AddLeftGroupbox("Aimbot (Complete)")
-aimGroup:AddToggle("Aim_Enabled", { Text = "Enable Aimbot", Default = false, Callback = function(v)
-    if v then Aimbot.enable() else Aimbot.disable() end
-end }):AddKeyPicker("Aim_Key", { Text = "Aimbot", Default = "MB2", Mode = "Toggle", NoUI = true, SyncToggleState = true, Callback = function(state) S.AimKey = state and "MB2" or "None" end })
+aimGroup:AddToggle("Aim_Enabled", { Text = "Enable Aimbot", Default = false, Callback = function(v) if v then Aimbot.enable() else Aimbot.disable() end end })
 aimGroup:AddDropdown("Aim_KeyDropdown", { Text = "Activation", Default = "MB2", Values = {"Always","MB1","MB2","Q","E","F","C","V","X"}, Callback = function(v) S.AimKey = v end })
 aimGroup:AddSlider("Aim_Smoothness", { Text = "Smoothness (0 = hard lock)", Default = 0, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) S.AimSmoothness = v end })
 aimGroup:AddToggle("Aim_LinkAxes", { Text = "Link X/Y smoothing", Default = true, Callback = function(v) S.AimLinkAxes = v end })
@@ -3436,17 +3336,7 @@ aimGroup:AddToggle("Aim_ShowLock", { Text = "Show lock indicator", Default = fal
 aimGroup:AddToggle("Aim_DirectCamera", { Text = "Direct camera fallback", Default = false, Callback = function(v) S.AimDirectCamera = v end })
 
 local rageGroup = CombatTab:AddRightGroupbox("Rage (Polar)")
-rageGroup:AddToggle("Rage_Enabled", {
-    Text = "Enable Rage", Default = false,
-    Callback = function(v)
-        if v then Rage.enable() else Rage.disable() end
-    end
-}):AddKeyPicker("Rage_Key", {
-    Text = "Rage", Default = "None", Mode = "Toggle", NoUI = true,
-    SyncToggleState = true, Callback = function(state)
-        if state then Rage.enable() else Rage.disable() end
-    end
-})
+rageGroup:AddToggle("Rage_Enabled", { Text = "Enable Rage", Default = false, Callback = function(v) if v then Rage.enable() else Rage.disable() end end }):AddKeyPicker("Rage_Key", { Text = "Rage", Default = "None", Mode = "Toggle", NoUI = true, SyncToggleState = true, Callback = function(state) if state then Rage.enable() else Rage.disable() end end })
 rageGroup:AddSlider("Rage_Taps", { Text = "Taps per fire", Default = 6, Min = 1, Max = 8, Rounding = 0, Compact = true, Callback = function(v) S.RageTaps = v end })
 rageGroup:AddSlider("Rage_TapsPerFrame", { Text = "Taps per frame", Default = 1, Min = 1, Max = 6, Rounding = 0, Compact = true, Callback = function(v) S.RageTapsPerFrame = v end })
 rageGroup:AddDropdown("Rage_OnEmpty", { Text = "On empty", Default = "Swap", Values = {"Swap","Reload"}, Callback = function(v) S.RageOnEmpty = v end })
@@ -3558,5 +3448,32 @@ if SaveManager then
     pcall(function() SaveManager:LoadAutoloadConfig() end)
 end
 
+pcall(Visuals.init)
+pcall(Rage.init)
+pcall(Aimbot.init)
+pcall(Rage._startTransportWatcher)
+
 Library:Notify({ Title = "v3 Hub", Description = "v11.0 載入完成", Time = 4 })
 print("[v11.0] 完整載入完成")
+    end
+    function Aimbot.disable()
+        S.AimEnabled = false
+        State.AimbotKeyHeld = false
+        clearTarget()
+        _sx, _sy, _fx, _fy = 0, 0, 0, 0
+        _haveCam, _ramp, _notified = false, 0, nil
+        _auth = 1.0
+        if _bound then
+            pcall(function() RunService:UnbindFromRenderStep("v3Hub_Aimbot") end)
+            _bound = false
+        end
+        if _fovC then _fovC.Visible = false end
+        if _lockC then _lockC.Visible = false end
+    end
+    function Aimbot.unload()
+        Aimbot.disable()
+        if _fovC then pcall(function() _fovC:Remove() end); _fovC = nil end
+        if _lockC then pcall(function() _lockC:Remove() end); _lockC = nil end
+    end
+    function Aimbot.hasMouseMove() return _mouseMove ~= nil end
+end)()
