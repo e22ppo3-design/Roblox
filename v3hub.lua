@@ -24,7 +24,7 @@ task.spawn(function()
             return
         end
 
-        queueFn("loadstring(game:HttpGet('" .. V3HUB_SELF_URL .. "'))()")
+        queueFn("task.wait(10) loadstring(game:HttpGet('" .. V3HUB_SELF_URL .. "'))()")
         print("[v3 Hub] 換服自動重跑已掛載：" .. V3HUB_SELF_URL)
     end)
 
