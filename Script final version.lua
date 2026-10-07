@@ -1,5 +1,5 @@
 -- ============================================================
--- AXIOM RIVALS v10.2 // 瞬移延遲 + 復活持續 + 酷炫 GUI
+-- v3 Hub // RIVALS 整合版
 -- ============================================================
 
 -- ========== 反封號 ==========
@@ -37,7 +37,7 @@ if hookmetamethod and getrawmetatable and setreadonly then
         return oldNamecall(self, ...)
     end)
     pcall(function() setreadonly(mt, true) end)
-    print("[v10.2] Kick hook 已安裝")
+    print("[v3 Hub] Kick hook 已安裝")
 end
 
 task.spawn(function()
@@ -104,7 +104,7 @@ local FighterRemote = Replication and Replication:FindFirstChild("Fighter")
 local UseItem = FighterRemote and FighterRemote:FindFirstChild("UseItem")
 local SetControls = FighterRemote and FighterRemote:FindFirstChild("SetControls")
 
-print("[v10.2] 模組載入完成")
+print("[v3 Hub] 模組載入完成")
 
 -- ========== 設定 ==========
 local S = {
@@ -115,8 +115,8 @@ local S = {
     OrbitSpeed = 3,
     OrbitRadius = 5,
     OrbitHeight = 1,
-    TeleportDelay = 0.5,       -- 瞬移延遲（秒）
-    PersistAfterRespawn = true, -- 死亡復活後持續
+    TeleportDelay = 0.5,
+    PersistAfterRespawn = true,
     AntiAimEnabled = false, AntiAimYaw = "jitter", AntiAimPitch = "jitter",
     AntiAimAngle = "none", AntiAimCustomAngle = 0,
     AntiAimMinSpeed = 10, AntiAimMaxSpeed = 20,
@@ -136,7 +136,6 @@ local S = {
     ShowTracer = true, ShowSkeleton = true,
     MaxDistance = 2000, HueSpeed = 0.25,
     TeamCheck = true, AntiAFK = true,
-    -- GUI 酷炫設定
     GuiAccent = Color3.fromRGB(0, 200, 255),
     GuiAccent2 = Color3.fromRGB(160, 60, 255),
     GuiPulse = true,
@@ -365,17 +364,12 @@ UIS.InputBegan:Connect(function(input, gpe)
 end)
 
 -- ============================================================
--- ========== 瞬移繞圈（延遲 + 復活持續）==========
+-- 瞬移繞圈（延遲 + 復活持續）
 -- ============================================================
 local backshoot = { connection = nil, target = nil, origCFrame = nil }
 local backshootMonitorConn = nil
 local orbit = { angle = 0 }
-local teleportState = {
-    lastTeleport = 0,
-    pending = false,
-    characterConn = nil,
-    humanoidConn = nil,
-}
+local teleportState = { lastTeleport = 0, characterConn = nil }
 
 local function closestPlayerBS()
     local best, bestD = nil, math.huge
@@ -401,7 +395,6 @@ local function backshootLoop()
         if not backshoot.target then return end
         local tr = backshoot.target:FindFirstChild("HumanoidRootPart")
         if not tr then return end
-        -- 延遲檢查
         local now = tick()
         if now - teleportState.lastTeleport < S.TeleportDelay then return end
         teleportState.lastTeleport = now
@@ -464,20 +457,15 @@ local function releaseBackshoot()
     end
 end
 
--- 死亡復活持續：CharacterAdded 自動重啟
 local function bindRespawnPersist()
-    if teleportState.characterConn then
-        teleportState.characterConn:Disconnect()
-    end
+    if teleportState.characterConn then teleportState.characterConn:Disconnect() end
     teleportState.characterConn = LP.CharacterAdded:Connect(function(char)
         if not S.BackshootEnabled or not S.PersistAfterRespawn then return end
-        task.wait(1.5) -- 等角色載入
+        task.wait(1.5)
         if not S.BackshootEnabled then return end
-        -- 重置狀態
         backshoot.target = nil
         backshoot.origCFrame = nil
         stopBS()
-        -- 自動找新目標
         local newChar = LP.Character
         if not newChar or not newChar:FindFirstChild("HumanoidRootPart") then return end
         local target = closestPlayerBS()
@@ -495,7 +483,6 @@ bindRespawnPersist()
 
 LP.CharacterRemoving:Connect(function()
     if S.PersistAfterRespawn and S.BackshootEnabled then
-        -- 保留設定，復活後自動接回
         stopBS()
     else
         releaseBackshoot()
@@ -665,7 +652,7 @@ local function findNearestAny()
     return best
 end
 
-local AIMBOT_BIND = "AxiomMouseAim"
+local AIMBOT_BIND = "v3HubMouseAim"
 RunService:BindToRenderStep(AIMBOT_BIND, 201, function(dt)
     if not S.AimEnabled then return end
     if not S.MouseAim then return end
@@ -924,7 +911,7 @@ end)
 
 -- ========== ESP ==========
 local espGui = Instance.new("ScreenGui")
-espGui.Name = "AxiomESP_" .. tostring(math.random(1, 999999))
+espGui.Name = "v3HubESP_" .. tostring(math.random(1, 999999))
 espGui.ResetOnSpawn = false
 espGui.IgnoreGuiInset = true
 espGui.DisplayOrder = 2147483646
@@ -1178,27 +1165,46 @@ local function updateESP()
 end
 
 -- ============================================================
--- ========== 酷炫 GUI：脈衝光暈 + 漸層標題 ==========
+-- ========== Obsidian GUI（v3 Hub 修復版）==========
 -- ============================================================
 local ObsidianRepo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
-local ok = pcall(function()
-    loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
-end)
-if not ok then
-    warn("[v10.2] Obsidian 載入失敗")
+
+-- 保險：先確認 Library 存在，避免被 addon 蓋掉
+if not getgenv().Library then
+    local ok = pcall(function()
+        loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
+    end)
+    if not ok then
+        warn("[v3 Hub] Obsidian Library 載入失敗")
+        return
+    end
+end
+
+local Library = getgenv().Library or getgenv().ObsidianLibrary
+if not Library then
+    warn("[v3 Hub] Library 為 nil，中止")
     return
 end
-local Library = getgenv().Library or getgenv().ObsidianLibrary
-if not Library then return end
 
--- addon 直接全域賦值
-ThemeManager = loadstring(game:HttpGet(ObsidianRepo .. "addons/ThemeManager.lua"))()
-SaveManager  = loadstring(game:HttpGet(ObsidianRepo .. "addons/SaveManager.lua"))()
+-- addon：直接全域賦值（Grief.cc 寫法）
+pcall(function()
+    ThemeManager = loadstring(game:HttpGet(ObsidianRepo .. "addons/ThemeManager.lua"))()
+    SaveManager  = loadstring(game:HttpGet(ObsidianRepo .. "addons/SaveManager.lua"))()
+end)
 
+-- 保險：addon 若回傳 nil，嘗試用 getgenv 拿
+if not ThemeManager then ThemeManager = getgenv().ThemeManager end
+if not SaveManager  then SaveManager  = getgenv().SaveManager  end
+
+-- 同步到 getgenv 跟 _G
 getgenv().ThemeManager = ThemeManager
 getgenv().SaveManager  = SaveManager
 _G.ThemeManager = ThemeManager
 _G.SaveManager  = SaveManager
+
+print("[v3 Hub] Library:", Library ~= nil)
+print("[v3 Hub] ThemeManager:", ThemeManager ~= nil)
+print("[v3 Hub] SaveManager:", SaveManager ~= nil)
 
 pcall(function()
     if ThemeManager then
@@ -1217,20 +1223,24 @@ if SaveManager then
             SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
         end
     end)
-    pcall(function() SaveManager:SetFolder("grief/rivals") end)
+    pcall(function() SaveManager:SetFolder("v3hub/rivals") end)
 end
 
 local Window = Library:CreateWindow({
-    Title = "AXIOM // RIVALS v10.2",
-    Footer = "Grief.cc | 酷炫版",
+    Title = "v3 Hub // RIVALS",
+    Footer = "v3 Hub | 酷炫版",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
 
--- 酷炫：加一層漸層 + 脈衝光暈到主視窗
+-- 保險：Holder 取用
 pcall(function()
-    local holder = Window.Holder or Window.MainFrame
-    if holder then
-        -- 漸層背景
+    Window.Holder = Window.Holder or Window.MainFrame or { Visible = true }
+end)
+
+-- ========== 酷炫外觀（放到 Window 建立後）==========
+pcall(function()
+    local holder = Window.Holder
+    if holder and holder.Parent then
         local grad = Instance.new("UIGradient")
         grad.Color = ColorSequence.new({
             ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 20, 30)),
@@ -1240,23 +1250,8 @@ pcall(function()
         grad.Rotation = 45
         grad.Parent = holder
 
-        -- 外光暈
-        local glow = Instance.new("ImageLabel")
-        glow.Name = "AxiomGlow"
-        glow.Image = "rbxassetid://5028857084"
-        glow.ImageColor3 = S.GuiAccent
-        glow.ImageTransparency = 0.5
-        glow.BackgroundTransparency = 1
-        glow.ScaleType = Enum.ScaleType.Slice
-        glow.SliceCenter = Rect.new(24, 24, 276, 276)
-        glow.Size = UDim2.new(1, 30, 1, 30)
-        glow.Position = UDim2.new(0, -15, 0, -15)
-        glow.ZIndex = -1
-        glow.Parent = holder
-
-        -- 頂部霓虹線
         local neonLine = Instance.new("Frame")
-        neonLine.Name = "AxiomNeonLine"
+        neonLine.Name = "v3NeonLine"
         neonLine.BackgroundColor3 = S.GuiAccent
         neonLine.BorderSizePixel = 0
         neonLine.Size = UDim2.new(1, 0, 0, 2)
@@ -1272,21 +1267,18 @@ pcall(function()
         })
         neonGrad.Parent = neonLine
 
-        -- 底部霓虹線
         local neonLine2 = neonLine:Clone()
-        neonLine2.Name = "AxiomNeonLine2"
+        neonLine2.Name = "v3NeonLine2"
         neonLine2.Position = UDim2.new(0, 0, 1, -2)
         neonLine2.Parent = holder
 
-        -- 脈衝動畫
         if S.GuiPulse then
             task.spawn(function()
                 local hue = 0
-                while Window and holder and holder.Parent do
+                while holder and holder.Parent do
                     hue = (hue + 0.005) % 1
                     local c = Color3.fromHSV(hue, 0.8, 1)
                     pcall(function()
-                        glow.ImageColor3 = c
                         neonLine.BackgroundColor3 = c
                         neonLine2.BackgroundColor3 = c
                     end)
@@ -1297,44 +1289,7 @@ pcall(function()
     end
 end)
 
--- ============================================================
--- 自訂「酷炫標題列」：發光 AXIOM 字樣
--- ============================================================
-pcall(function()
-    local holder = Window.Holder or Window.MainFrame
-    if not holder then return end
-    -- 找標題列
-    local titleBar
-    for _, child in ipairs(holder:GetDescendants()) do
-        if child:IsA("TextLabel") and (child.Text == "AXIOM // RIVALS v10.2" or child.Text:find("AXIOM")) then
-            titleBar = child
-            break
-        end
-    end
-    if titleBar then
-        titleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
-        titleBar.TextStrokeTransparency = 0.3
-        titleBar.TextStrokeColor3 = S.GuiAccent
-
-        local tg = Instance.new("UIGradient")
-        tg.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, S.GuiAccent),
-            ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
-            ColorSequenceKeypoint.new(1, S.GuiAccent2),
-        })
-        tg.Parent = titleBar
-
-        if S.GuiPulse then
-            task.spawn(function()
-                while titleBar and titleBar.Parent do
-                    tg.Rotation = (tg.Rotation + 1) % 360
-                    task.wait(0.03)
-                end
-            end)
-        end
-    end
-end)
-
+-- ========== 分頁 ==========
 local CombatTab = Window:AddTab("Combat", "swords")
 local VisualsTab = Window:AddTab("Visuals", "eye")
 local MovementTab = Window:AddTab("Movement", "person-standing")
@@ -1342,9 +1297,7 @@ local GunTab = Window:AddTab("Gun", "crosshair")
 local MiscTab = Window:AddTab("Misc", "circle-ellipsis")
 local ConfigTab = Window:AddTab("Configs", "save")
 
--- ============================================================
 -- Combat
--- ============================================================
 local silentGroup = CombatTab:AddLeftGroupbox("Silent Aim")
 silentGroup:AddToggle("Silent_Enabled", {
     Text = "Enable Silent Aim", Default = false,
@@ -1382,7 +1335,6 @@ aimGroup:AddSlider("Aimbot_Deadzone", { Text = "滑鼠死區", Default = 2, Min 
 aimGroup:AddSlider("Aimbot_MaxStep", { Text = "單幀上限", Default = 200, Min = 10, Max = 500, Rounding = 0, Compact = true, Callback = function(v) S.MouseMaxStep = v end })
 aimGroup:AddSlider("Aimbot_Stuck", { Text = "卡住解鎖秒", Default = 3, Min = 0.5, Max = 10, Rounding = 1, Compact = true, Callback = function(v) S.AimStuckTime = v end })
 
--- 瞬移繞圈（延遲 + 復活持續）
 local backGroup = CombatTab:AddRightGroupbox("瞬移繞圈（Orbit）")
 backGroup:AddToggle("Backshoot_Enabled", {
     Text = "啟用繞圈（繞敵人轉）",
@@ -1423,9 +1375,7 @@ antiGroup:AddSlider("AntiAim_MinAngle", { Text = "Min Angle", Default = 30, Min 
 antiGroup:AddSlider("AntiAim_MaxAngle", { Text = "Max Angle", Default = 60, Min = 1, Max = 180, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMaxAngle = v end })
 antiGroup:AddToggle("AntiAim_RandomAngle", { Text = "Random Angle", Default = false, Callback = function(v) S.AntiAimRandomAngle = v end })
 
--- ============================================================
 -- Visuals
--- ============================================================
 local espGroup = VisualsTab:AddLeftGroupbox("ESP")
 espGroup:AddToggle("ESP_Enabled", { Text = "ESP 開關", Default = true, Callback = function(v) S.ESPEnabled = v end })
 espGroup:AddToggle("ESP_Name", { Text = "名字", Default = true, Callback = function(v) S.ShowName = v end })
@@ -1442,22 +1392,13 @@ crossGroup:AddToggle("Crosshair_ShowLines", { Text = "Show Lines", Default = tru
 crossGroup:AddSlider("Crosshair_Spin", { Text = "Spin Speed", Default = 150, Min = 0, Max = 340, Rounding = 0, Compact = true, Callback = function(v) S.CrosshairSpinSpeed = v end })
 crossGroup:AddDropdown("Crosshair_Mode", { Text = "Mode", Default = "static", Values = {"static","follow muzzle"}, Callback = function(v) S.CrosshairMode = v end })
 
--- GUI 酷炫設定
 local guiGroup = VisualsTab:AddRightGroupbox("GUI 外觀")
 guiGroup:AddToggle("Gui_Pulse", { Text = "脈衝光暈", Default = true, Callback = function(v) S.GuiPulse = v end })
 guiGroup:AddToggle("Gui_Glow", { Text = "外框光暈", Default = true, Callback = function(v) S.GuiGlow = v end })
-guiGroup:AddColorPicker("Gui_Accent", {
-    Default = S.GuiAccent, Title = "主色",
-    Callback = function(v) S.GuiAccent = v end
-})
-guiGroup:AddColorPicker("Gui_Accent2", {
-    Default = S.GuiAccent2, Title = "副色",
-    Callback = function(v) S.GuiAccent2 = v end
-})
+guiGroup:AddColorPicker("Gui_Accent", { Default = S.GuiAccent, Title = "主色", Callback = function(v) S.GuiAccent = v end })
+guiGroup:AddColorPicker("Gui_Accent2", { Default = S.GuiAccent2, Title = "副色", Callback = function(v) S.GuiAccent2 = v end })
 
--- ============================================================
 -- Movement
--- ============================================================
 local moveGroup = MovementTab:AddLeftGroupbox("Movement")
 moveGroup:AddToggle("Move_InfJump", { Text = "Infinite Jump", Default = false, Callback = function(v) S.InfJump = v end })
 moveGroup:AddToggle("Move_Noclip", { Text = "Noclip", Default = false, Callback = function(v) S.Noclip = v end })
@@ -1466,9 +1407,7 @@ moveGroup:AddSlider("Move_WalkSpeed", { Text = "WalkSpeed", Default = 16, Min = 
 moveGroup:AddSlider("Move_JumpPower", { Text = "JumpPower", Default = 50, Min = 50, Max = 300, Rounding = 0, Compact = true, Callback = function(v) S.JumpPower = v end })
 moveGroup:AddSlider("Move_FlySpeed", { Text = "Fly Speed", Default = 50, Min = 16, Max = 750, Rounding = 0, Compact = true, Callback = function(v) S.FlySpeed = v end })
 
--- ============================================================
 -- Gun
--- ============================================================
 local gunGroup = GunTab:AddLeftGroupbox("Gun Mods")
 gunGroup:AddToggle("Gun_AntiKatana", { Text = "Anti Katana", Default = false, Callback = function(v) S.AntiKatana = v end })
 gunGroup:AddToggle("Gun_NoCooldown", { Text = "No Cooldown", Default = false, Callback = function(v) S.NoCooldown = v end })
@@ -1478,9 +1417,7 @@ gunGroup:AddToggle("Gun_MaxAccuracy", { Text = "Max Accuracy", Default = false, 
 gunGroup:AddToggle("Gun_RapidAttack", { Text = "Rapid Attack", Default = false, Callback = function(v) S.RapidAttack = v end })
 gunGroup:AddToggle("Gun_NoMuzzleFlash", { Text = "No Muzzle Flash", Default = false, Callback = function(v) S.NoMuzzleFlash = v; updateMuzzleFlash() end })
 
--- ============================================================
 -- Misc
--- ============================================================
 local deviceGroup = MiscTab:AddLeftGroupbox("Device Spoof")
 deviceGroup:AddToggle("Device_Spoof", { Text = "Enable", Default = false, Callback = function(v) S.DeviceSpoof = v; applyDeviceSpoof() end })
 deviceGroup:AddDropdown("Device_Type", { Text = "Type", Default = "PC", Values = {"PC","Console","Mobile","VR"}, Callback = function(v) S.DeviceType = v; if S.DeviceSpoof then applyDeviceSpoof() end end })
@@ -1507,9 +1444,7 @@ if SaveManager then
     pcall(function() SaveManager:LoadAutoloadConfig() end)
 end
 
--- ============================================================
--- 主迴圈
--- ============================================================
+-- ========== 主迴圈 ==========
 RunService.RenderStepped:Connect(function(dt)
     tGlobal = tGlobal + dt
     if not C then C = W.CurrentCamera end
@@ -1580,5 +1515,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "AXIOM v10.2", Description = "延遲 + 復活持續 + 酷炫 GUI", Time = 5 })
-print("[v10.2] 完整載入完成")
+Library:Notify({ Title = "v3 Hub", Description = "載入完成", Time = 5 })
+print("[v3 Hub] 完整載入完成")
