@@ -2532,6 +2532,28 @@ local Aimbot = {}
             pcall(step, dt)
         end)
         _bound = true
+    end
+    function Aimbot.disable()
+        S.AimEnabled = false
+        State.AimbotKeyHeld = false
+        clearTarget()
+        _sx, _sy, _fx, _fy = 0, 0, 0, 0
+        _haveCam, _ramp, _notified = false, 0, nil
+        _auth = 1.0
+        if _bound then
+            pcall(function() RunService:UnbindFromRenderStep("v3Hub_Aimbot") end)
+            _bound = false
+        end
+        if _fovC then _fovC.Visible = false end
+        if _lockC then _lockC.Visible = false end
+    end
+    function Aimbot.unload()
+        Aimbot.disable()
+        if _fovC then pcall(function() _fovC:Remove() end); _fovC = nil end
+        if _lockC then pcall(function() _lockC:Remove() end); _lockC = nil end
+    end
+    function Aimbot.hasMouseMove() return _mouseMove ~= nil end
+end)()
 local silentLastFire = 0
 local silentFireCD = 0.01
 local raySilent = RaycastParams.new()
@@ -2657,6 +2679,7 @@ local function calcAntiAimYaw()
     return yaw
 end
 local function calcAntiAimPitch()
+    
     local pitch = 0
     if S.AntiAimPitch == "jitter" then
         local minA = math.rad(S.AntiAimMinAngle)
@@ -2721,6 +2744,7 @@ local function buildESP(key)
     holder.BackgroundTransparency = 1
     holder.Visible = false
     holder.Parent = espGui
+
 
     local nameLbl = Instance.new("TextLabel")
     nameLbl.BackgroundTransparency = 1
@@ -3455,25 +3479,3 @@ pcall(Rage._startTransportWatcher)
 
 Library:Notify({ Title = "v3 Hub", Description = "v11.0 載入完成", Time = 4 })
 print("[v11.0] 完整載入完成")
-    end
-    function Aimbot.disable()
-        S.AimEnabled = false
-        State.AimbotKeyHeld = false
-        clearTarget()
-        _sx, _sy, _fx, _fy = 0, 0, 0, 0
-        _haveCam, _ramp, _notified = false, 0, nil
-        _auth = 1.0
-        if _bound then
-            pcall(function() RunService:UnbindFromRenderStep("v3Hub_Aimbot") end)
-            _bound = false
-        end
-        if _fovC then _fovC.Visible = false end
-        if _lockC then _lockC.Visible = false end
-    end
-    function Aimbot.unload()
-        Aimbot.disable()
-        if _fovC then pcall(function() _fovC:Remove() end); _fovC = nil end
-        if _lockC then pcall(function() _lockC:Remove() end); _lockC = nil end
-    end
-    function Aimbot.hasMouseMove() return _mouseMove ~= nil end
-end)()
