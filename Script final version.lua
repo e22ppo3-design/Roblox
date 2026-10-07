@@ -1,5 +1,5 @@
 -- ============================================================
--- AXIOM RIVALS v9.9 // 瞬移繞圈
+-- AXIOM RIVALS v10.0 // 加 SaveManager 儲存/載入
 -- ============================================================
 
 -- ========== 反封號 ==========
@@ -36,7 +36,7 @@ if hookmetamethod and getrawmetatable and setreadonly then
         return oldNamecall(self, ...)
     end)
     pcall(function() setreadonly(mt, true) end)
-    print("[v9.9] Kick hook 已安裝")
+    print("[v10.0] Kick hook 已安裝")
 end
 
 task.spawn(function()
@@ -103,9 +103,9 @@ local FighterRemote = Replication and Replication:FindFirstChild("Fighter")
 local UseItem = FighterRemote and FighterRemote:FindFirstChild("UseItem")
 local SetControls = FighterRemote and FighterRemote:FindFirstChild("SetControls")
 
-print("[v9.9] Utility:", Utility ~= nil, "| EnumLibrary:", EnumLibrary ~= nil)
-print("[v9.9] Gun:", GunModule ~= nil, "| Melee:", MeleeModule ~= nil)
-print("[v9.9] UseItem:", UseItem ~= nil, "| SetControls:", SetControls ~= nil)
+print("[v10.0] Utility:", Utility ~= nil, "| EnumLibrary:", EnumLibrary ~= nil)
+print("[v10.0] Gun:", GunModule ~= nil, "| Melee:", MeleeModule ~= nil)
+print("[v10.0] UseItem:", UseItem ~= nil, "| SetControls:", SetControls ~= nil)
 
 -- ========== 設定 ==========
 local S = {
@@ -139,7 +139,7 @@ local S = {
 }
 
 local hasMouseMoveRel = type(mousemoverel) == "function"
-print("[v9.9] mousemoverel 支援:", hasMouseMoveRel)
+print("[v10.0] mousemoverel 支援:", hasMouseMoveRel)
 
 -- ========== 工具 ==========
 local function worldToScreen(pos, cam)
@@ -391,12 +391,8 @@ local function backshootLoop()
         if not backshoot.target then return end
         local tr = backshoot.target:FindFirstChild("HumanoidRootPart")
         if not tr then return end
-
-        -- 繞圈：角度增加
         orbit.angle = orbit.angle + S.OrbitSpeed * dt * math.pi * 2
         if orbit.angle > math.pi * 2 then orbit.angle = orbit.angle - math.pi * 2 end
-
-        -- 圓周上的位置
         local offset = Vector3.new(
             math.cos(orbit.angle) * S.OrbitRadius,
             S.OrbitHeight,
@@ -417,8 +413,6 @@ local function startContinuousBackshoot()
         if not S.BackshootEnabled then return end
         local mc = LP.Character
         if not mc or not mc:FindFirstChild("HumanoidRootPart") then return end
-
-        -- 目標死亡或消失 → 回原點，清目標
         if backshoot.target then
             local hum = backshoot.target:FindFirstChild("Humanoid")
             if not hum or hum.Health <= 0 or not backshoot.target.Parent then
@@ -430,8 +424,6 @@ local function startContinuousBackshoot()
                 backshoot.origCFrame = nil
             end
         end
-
-        -- 沒有目標 → 找最近的敵人
         if not backshoot.target then
             local target = closestPlayerBS()
             if target then
@@ -800,7 +792,7 @@ if GunModule and GunModule.StartShooting then
         if oldRecoil then self.Info.ShootRecoil = oldRecoil end
         return unpack(result)
     end
-    print("[v9.9] Gun 無散射 / 無後座 / 無冷卻 hook 已安裝")
+    print("[v10.0] Gun 無散射 / 無後座 / 無冷卻 hook 已安裝")
 end
 
 if GameplayUtility and GameplayUtility.GetSpread then
@@ -811,7 +803,7 @@ if GameplayUtility and GameplayUtility.GetSpread then
         end
         return origSpread(self, aimMultiplier, isAiming, isCrouching, pelletIndex, totalPellets, consistent)
     end
-    print("[v9.9] Gun GetSpread hook 已安裝")
+    print("[v10.0] Gun GetSpread hook 已安裝")
 end
 
 if MeleeModule and MeleeModule.StartShooting then
@@ -826,7 +818,7 @@ if MeleeModule and MeleeModule.StartShooting then
         if S.RapidAttack and oldCD then self.Info.AttackCooldown = oldCD end
         return unpack(result)
     end
-    print("[v9.9] Melee RapidAttack hook 已安裝")
+    print("[v10.0] Melee RapidAttack hook 已安裝")
 end
 
 local muzzleFlashConn = nil
@@ -1149,7 +1141,7 @@ local ok = pcall(function()
     loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
 end)
 if not ok then
-    warn("[v9.9] Obsidian 載入失敗")
+    warn("[v10.0] Obsidian 載入失敗")
     return
 end
 local Library = getgenv().Library or getgenv().ObsidianLibrary
@@ -1169,8 +1161,19 @@ pcall(function()
     end
 end)
 
+-- SaveManager 設定（Grief.cc 方式）
+if getgenv().SaveManager then
+    pcall(function() SaveManager:SetLibrary(Library) end)
+    pcall(function()
+        if SaveManager.SetIgnoreIndexes then
+            SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+        end
+    end)
+    pcall(function() SaveManager:SetFolder("grief/rivals") end)
+end
+
 local Window = Library:CreateWindow({
-    Title = "AXIOM // RIVALS v9.9",
+    Title = "AXIOM // RIVALS v10.0",
     Footer = "Grief.cc 功能 | Obsidian GUI",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
@@ -1180,6 +1183,7 @@ local VisualsTab = Window:AddTab("Visuals", "eye")
 local MovementTab = Window:AddTab("Movement", "person-standing")
 local GunTab = Window:AddTab("Gun", "crosshair")
 local MiscTab = Window:AddTab("Misc", "circle-ellipsis")
+local ConfigTab = Window:AddTab("Configs", "save")
 
 -- Combat
 local silentGroup = CombatTab:AddLeftGroupbox("Silent Aim")
@@ -1351,6 +1355,16 @@ miscGroup:AddButton({ Text = "卸載腳本", Func = function()
     Library:Unload()
 end })
 
+-- ========== SaveManager 建構 Config 區塊 ==========
+if getgenv().SaveManager then
+    pcall(function()
+        SaveManager:BuildConfigSection(ConfigTab)
+    end)
+    pcall(function()
+        SaveManager:LoadAutoloadConfig()
+    end)
+end
+
 -- ========== 主迴圈 ==========
 RunService.RenderStepped:Connect(function(dt)
     tGlobal = tGlobal + dt
@@ -1422,5 +1436,5 @@ task.spawn(function()
     end
 end)
 
-Library:Notify({ Title = "AXIOM v9.9", Description = "瞬移繞圈（速度 3 圈/秒）", Time = 4 })
-print("[v9.9] 完整載入完成")
+Library:Notify({ Title = "AXIOM v10.0", Description = "SaveManager 已加入", Time = 4 })
+print("[v10.0] 完整載入完成")
