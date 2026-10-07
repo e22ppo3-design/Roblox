@@ -1,11 +1,3 @@
-
--- ============================================================
--- v3 Hub // RIVALS v11.0
--- 完整版：Polar Rage + Aimbot + Linoria 風格設定
--- 第一段：反封號 + 依賴 + ConstPatch + ViewAngle
--- ============================================================
-
--- ★ 換服自動重跑 ★
 local V3HUB_SELF_URL = "https://raw.githubusercontent.com/e22ppo3-design/Roblox/main/v3hub.lua"
 
 task.spawn(function()
@@ -1070,13 +1062,7 @@ local ViewAngle = {}
 
     ViewAngle.isForging = function() return _forged ~= nil end
 end)()
-
 print("[v11.0] 第一段載入完成：反封號 / 依賴 / ConstPatch / ViewAngle")
--- 【第一段結束，等第二段】-- ============================================================
--- v11.0 第二段：Rage + PolarCore + Aimbot 完整版
--- ============================================================
-
--- ========== Lead / 預測 ==========
 local _sharedVelMap = {}
 do
     local _svPos, _svTime = {}, {}
@@ -2670,11 +2656,7 @@ local Aimbot = {}
     function Aimbot.hasMouseMove() return _mouseMove ~= nil end
 end)()
 
-print("[v11.0] 第二段載入完成：Rage / PolarCore / Aimbot 完整版")-- ============================================================
--- v11.0 第三段：Silent / Anti-Aim / ESP / Crosshair / Gun / Auto / GUI
--- ============================================================
-
--- ========== Silent Aim ==========
+print("[v11.0] 第二段載入完成：Rage / PolarCore / Aimbot 完整版")
 local silentLastFire = 0
 local silentFireCD = 0.01
 local raySilent = RaycastParams.new()
