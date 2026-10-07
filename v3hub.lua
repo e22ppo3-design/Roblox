@@ -5,7 +5,7 @@
 
 -- ★★★ 把下面這行改成你的 GitHub raw 連結 ★★★
 -- 格式：https://raw.githubusercontent.com/你的帳號/你的庫名/main/v3hub.lua
-local V3HUB_SELF_URL = "https://raw.githubusercontent.com/你的帳號/你的庫名/main/v3hub.lua"
+local V3HUB_SELF_URL = "https://raw.githubusercontent.com/e22ppo3-design/Roblox/main/v3hub.lua"
 
 -- 掛 queue_on_teleport，換服自動重跑
 task.spawn(function()
