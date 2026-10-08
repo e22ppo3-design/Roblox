@@ -1,6 +1,6 @@
 -- ============================================================
--- LuaHook v12.0 — 模組 1 完整版
--- 反封鎖 + Linoria 框架 + v11.0 靜默自瞄（完整）
+-- LuaHook v12.0 — 模組 1 完整版（牆壁檢測修復）
+-- 反封鎖 + Linoria 框架 + v11.0 靜默自瞄（完整 + 自動開槍 + 牆壁檢測修復）
 -- ============================================================
 
 -- ============ 反封鎖 ============
@@ -42,7 +42,6 @@ W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     C = W.CurrentCamera
 end)
 
--- 反封鎖 第 1 層
 do
     if getgenvFn and hookfunction and newcclosure and getrenv then
         getgenvFn().__LH_SetmtBP = game
@@ -68,7 +67,6 @@ do
     end
 end
 
--- 反封鎖 第 2 層
 if hookmetamethod and getrawmetatable and setreadonly then
     local mt = getrawmetatable(game)
     pcall(function() setreadonly(mt, false) end)
@@ -89,7 +87,6 @@ if hookmetamethod and getrawmetatable and setreadonly then
     pcall(function() setreadonly(mt, true) end)
 end
 
--- 反封鎖 第 3 層
 local function nukeConnections()
     if not getconnections then return end
     pcall(function()
@@ -105,7 +102,6 @@ local function nukeConnections()
 end
 nukeConnections()
 
--- 反封鎖 第 4 層
 RS.DescendantAdded:Connect(function(obj)
     if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
         local n = obj.Name:lower()
@@ -121,7 +117,6 @@ LP.CharacterAdded:Connect(function()
     nukeConnections()
 end)
 
--- 反封鎖 第 5 層
 if hookmetamethod then
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
@@ -132,7 +127,6 @@ if hookmetamethod then
     end)
 end
 
--- 反封鎖 第 6 層
 task.spawn(function()
     local tags = {"anticheat","ac","detection","ban","kick","security","moderation"}
     local function procAC(o)
@@ -152,7 +146,6 @@ task.spawn(function()
     game.DescendantAdded:Connect(procAC)
 end)
 
--- 反封鎖 第 7 層
 task.spawn(function()
     if not hookfunction or not getgc or not getfenv then return end
     pcall(function()
@@ -180,7 +173,6 @@ task.spawn(function()
     end)
 end)
 
--- 反封鎖 第 8 層
 pcall(function()
     local fakeEv = Instance.new("RemoteEvent")
     fakeEv.Name = "ClientAlert"
@@ -252,7 +244,6 @@ resolveAll({
 })
 Rivals.Ready = (Rivals.Util ~= nil and Rivals.Fighter ~= nil)
 
--- 抓 UseItem / Utility / EnumLibrary
 local UseItem = nil
 local Utility = Rivals.Util
 local EnumLibrary = Rivals.Enums
@@ -334,17 +325,17 @@ do
     end)
 end
 
-local _visParams = RaycastParams.new()
-_visParams.FilterType = Enum.RaycastFilterType.Exclude
+local visParams = RaycastParams.new()
+visParams.FilterType = Enum.RaycastFilterType.Exclude
 local _visFilterChar = nil
 local function isVisible(worldPos)
     local origin = C.CFrame.Position
     local _vc = LP.Character
     if _vc ~= _visFilterChar then
-        _visParams.FilterDescendantsInstances = { _vc }
+        visParams.FilterDescendantsInstances = { _vc }
         _visFilterChar = _vc
     end
-    local result = W:Raycast(origin, worldPos - origin, _visParams)
+    local result = W:Raycast(origin, worldPos - origin, visParams)
     if not result then return true end
     local hitModel = result.Instance and result.Instance:FindFirstAncestorOfClass("Model")
     if hitModel and Players:GetPlayerFromCharacter(hitModel) then return true end
@@ -392,7 +383,6 @@ local function pickPart(char, mode)
     return char:FindFirstChild("HumanoidRootPart")
 end
 
--- 共享編碼工具
 local SharedEncode = {}
 do
     local function lookCF(fromPos, toPos)
@@ -469,7 +459,7 @@ do
     end
 end
 
--- ============ v11.0 靜默自瞄（完整）============
+-- ============ v11.0 靜默自瞄（牆壁檢測雙重修復）============
 local S = {
     SilentEnabled = false,
     SilentHitPart = "Head",
@@ -498,14 +488,13 @@ local State = {
     CamPos = Vector3.zero,
 }
 
-local function isValidTargetSilent(player, checkVis, keepDeflect)
+local function isValidTargetSilent(player, checkVis)
     if not player or player == LP then return false end
     if S.TeamCheck and isTeammate(player) then return false end
     if not isAlive(player) then return false end
     local char = player.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
-    if checkVis and not isVisible(hrp.Position) then return false end
     return true
 end
 
@@ -520,17 +509,19 @@ local function selectTargetSilent(opts)
     local center = Vector2.new(vp.X * 0.5, vp.Y * 0.5)
     local best, bestPart, bestScore = nil, nil, math.huge
     for _, player in ipairs(getSafePlayers()) do
-        if player ~= LP and isValidTargetSilent(player, false) then
+        if isValidTargetSilent(player) then
             local char = player.Character
             local part = pickPart(char, mode)
-            if part and (not checkVis or isVisible(part.Position)) then
-                local sp, on = C:WorldToViewportPoint(part.Position)
-                if on and sp.Z > 0 then
-                    local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
-                    if d <= fov then
-                        local score = d
-                        if player == sticky then score = score * (1 - stickyBonus) end
-                        if score < bestScore then bestScore, best, bestPart = score, player, part end
+            if part then
+                if (not checkVis) or isVisible(part.Position) then
+                    local sp, on = C:WorldToViewportPoint(part.Position)
+                    if on and sp.Z > 0 then
+                        local d = (Vector2.new(sp.X, sp.Y) - center).Magnitude
+                        if d <= fov then
+                            local score = d
+                            if player == sticky then score = score * (1 - stickyBonus) end
+                            if score < bestScore then bestScore, best, bestPart = score, player, part end
+                        end
                     end
                 end
             end
@@ -546,11 +537,15 @@ local function findSilentTarget()
         local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
         if not myRoot then return nil end
         for _, p in ipairs(getSafePlayers()) do
-            if isValidTargetSilent(p, false) then
+            if isValidTargetSilent(p) then
                 local part = getHitPartName(p.Character, S.SilentHitPart)
                 if part then
-                    local d = (part.Position - myRoot.Position).Magnitude
-                    if d < bestD then best, bestD = p, d end
+                    -- ★ 360 模式也套用牆壁檢測
+                    local visibleOK = (not S.SilentWallCheck) or isVisible(part.Position)
+                    if visibleOK then
+                        local d = (part.Position - myRoot.Position).Magnitude
+                        if d < bestD then best, bestD = p, d end
+                    end
                 end
             end
         end
@@ -573,6 +568,10 @@ local function fireSilentAt(target)
     if not lf or not lf.EquippedItem then return false end
     local part = getHitPartName(target.Character, S.SilentHitPart)
     if not part then return false end
+    -- ★ 開火前雙重檢查牆壁
+    if S.SilentWallCheck then
+        if not isVisible(part.Position) then return false end
+    end
     local myChar = LP.Character
     local root = myChar and myChar:FindFirstChild("HumanoidRootPart")
     if not root then return false end
@@ -680,7 +679,6 @@ local Toggles = Library.Toggles or {}
 Library.Options = Options
 Library.Toggles = Toggles
 
--- ============ 靜默自瞄 GUI（v11.0 格式）============
 do
     local L = Tabs.Combat:AddLeftGroupbox('靜默自瞄')
     L:AddToggle('Silent_Enabled', {
@@ -728,7 +726,6 @@ do
     })
 end
 
--- ============ 設定分頁 ============
 do
     local L = Tabs.Settings:AddLeftGroupbox('選單')
     L:AddDropdown('GUIToggleKey', {
