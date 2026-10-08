@@ -2093,3 +2093,971 @@ pcall(Rage.init)
 Library:Notify('v12.0 完整版載入完成', 4)
 _G["\76\72"] = Library
 print("[v12.0] 完整版載入完成")
+-- ============================================================
+-- 第四段：HUD + 遊戲外觀 + 天氣（Linoria 版）
+-- ============================================================
+
+-- ============ HUD / 命中回饋 ============
+local HUDPlus = {}
+do
+    local hasDrawing = false
+    local SoundService = game:GetService("SoundService")
+    local StatsService = game:GetService("Stats")
+    local C_GREY   = Color3.fromRGB(200, 200, 200)
+    local C_AMBER  = Color3.fromRGB(255, 170, 60)
+    local C_ORANGE = Color3.fromRGB(255, 120, 30)
+    local C_RED    = Color3.fromRGB(255, 59, 78)
+    local C_SCREENRED = Color3.fromRGB(194, 30, 47)
+    local C_BLACK  = Color3.new(0, 0, 0)
+    local C_GOLD   = Color3.fromRGB(255, 194, 75)
+    local C_FILL   = Color3.fromRGB(13, 18, 25)
+    local C_HPBG   = Color3.fromRGB(11, 15, 22)
+    local C_TEXT2  = Color3.fromRGB(174, 185, 197)
+    local WHITE    = Color3.new(1, 1, 1)
+    local _started = false
+    local _updConn, _gui = nil, nil
+    local _hmLines, _hmLinesBlk = nil, nil
+    local _hm = { on = false, t0 = 0, pop = 0, color = WHITE }
+    local _snds, _sndIdx, _sndLastT = nil, 1, 0
+    local _dnPool, _dnActive, _dnByPlr = nil, {}, {}
+    local _kbL1, _kbL2, _kbRing = nil, nil, nil
+    local _kb = { on = false, t0 = 0, streak = 0, lastKillT = 0, line1 = "", line2 = "" }
+    local _kfPool, _kfItems = nil, {}
+    local _hsLines, _hsLinesBlk = nil, nil
+    local _hs = { on = false, t0 = 0, pos = nil }
+    local _flashFrame = nil
+    local _hf = { on = false, t0 = 0 }
+    local _vgFrames = nil
+    local _vgHP, _vgLastPoll = 1, 0
+    local _hcConn, _charConn, _lastHP = nil, nil, nil
+    local _wmBg, _wmAccent, _wmText = nil, nil, nil
+    local _wm = { fps = 60, ping = 0, pingT = 0, str = "", strT = 0, bw = nil, pw = 60 }
+    local _sessKills, _sessT0 = 0, tick()
+    local _kfTicks = nil
+
+    local function ensureGui()
+        if _gui and _gui.Parent then return _gui end
+        local g = Instance.new("ScreenGui")
+        g.Name = "_vs_fx"
+        g.IgnoreGuiInset = true
+        g.ResetOnSpawn = false
+        g.DisplayOrder = 999
+        local ok = pcall(function() g.Parent = (gethui and gethui()) or game:GetService("CoreGui") end)
+        if not ok or not g.Parent then
+            pcall(function() g.Parent = LP:FindFirstChildOfClass("PlayerGui") end)
+        end
+        _gui = g
+        return g
+    end
+
+    local function allocate()
+        if _dnPool then return end
+        local g = ensureGui()
+        local fr = Instance.new("Frame")
+        fr.Name = "_fl"; fr.BackgroundColor3 = C_SCREENRED; fr.BackgroundTransparency = 1
+        fr.BorderSizePixel = 0; fr.Size = UDim2.new(1, 0, 1, 0); fr.Visible = false
+        fr.ZIndex = 1; fr.Parent = g
+        _flashFrame = fr
+        _vgFrames = {}
+        local SIDES = {
+            { size = UDim2.new(1, 0, 0.16, 0),  pos = UDim2.new(0, 0, 0, 0),     rot = 90  },
+            { size = UDim2.new(1, 0, 0.16, 0),  pos = UDim2.new(0, 0, 0.84, 0),  rot = 270 },
+            { size = UDim2.new(0.12, 0, 1, 0),  pos = UDim2.new(0, 0, 0, 0),     rot = 0   },
+            { size = UDim2.new(0.12, 0, 1, 0),  pos = UDim2.new(0.88, 0, 0, 0),  rot = 180 },
+        }
+        for i, s in ipairs(SIDES) do
+            local f = Instance.new("Frame")
+            f.Name = "_vg" .. i; f.BackgroundColor3 = C_SCREENRED; f.BackgroundTransparency = 1
+            f.BorderSizePixel = 0; f.Size = s.size; f.Position = s.pos; f.Visible = false
+            f.ZIndex = 2
+            local grad = Instance.new("UIGradient")
+            grad.Rotation = s.rot
+            grad.Transparency = NumberSequence.new(0, 1)
+            grad.Parent = f
+            f.Parent = g
+            _vgFrames[i] = f
+        end
+        _hmLinesBlk = {}
+        for i = 1, 4 do
+            local l = Instance.new("Frame")
+            l.BackgroundColor3 = C_BLACK; l.BorderSizePixel = 0
+            l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
+            l.Parent = g
+            _hmLinesBlk[i] = l
+        end
+        _hmLines = {}
+        for i = 1, 4 do
+            local l = Instance.new("Frame")
+            l.BackgroundColor3 = WHITE; l.BorderSizePixel = 0
+            l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
+            l.Parent = g
+            _hmLines[i] = l
+        end
+        _dnPool = {}
+        for i = 1, 24 do
+            local t = Instance.new("TextLabel")
+            t.BackgroundTransparency = 1
+            t.TextColor3 = WHITE
+            t.Font = Enum.Font.Code
+            t.TextSize = 14
+            t.TextStrokeTransparency = 0
+            t.TextStrokeColor3 = C_BLACK
+            t.AnchorPoint = Vector2.new(0.5, 0.5)
+            t.Text = ""
+            t.Visible = false
+            t.Size = UDim2.fromOffset(200, 20)
+            t.Parent = g
+            _dnPool[i] = t
+        end
+        _kbL1 = Instance.new("TextLabel")
+        _kbL1.BackgroundTransparency = 1
+        _kbL1.TextColor3 = WHITE
+        _kbL1.Font = Enum.Font.Code
+        _kbL1.TextSize = 12
+        _kbL1.TextStrokeTransparency = 0
+        _kbL1.TextStrokeColor3 = C_BLACK
+        _kbL1.AnchorPoint = Vector2.new(0.5, 0.5)
+        _kbL1.Text = ""
+        _kbL1.Visible = false
+        _kbL1.Size = UDim2.fromOffset(300, 20)
+        _kbL1.Parent = g
+        _kbL2 = Instance.new("TextLabel")
+        _kbL2.BackgroundTransparency = 1
+        _kbL2.TextColor3 = C_GOLD
+        _kbL2.Font = Enum.Font.Code
+        _kbL2.TextSize = 22
+        _kbL2.TextStrokeTransparency = 0
+        _kbL2.TextStrokeColor3 = C_BLACK
+        _kbL2.AnchorPoint = Vector2.new(0.5, 0.5)
+        _kbL2.Text = ""
+        _kbL2.Visible = false
+        _kbL2.Size = UDim2.fromOffset(300, 30)
+        _kbL2.Parent = g
+        _kbRing = Instance.new("Frame")
+        _kbRing.BackgroundTransparency = 1
+        _kbRing.AnchorPoint = Vector2.new(0.5, 0.5)
+        _kbRing.Position = UDim2.new(0.5, 0, 0.5, 0)
+        _kbRing.Size = UDim2.fromOffset(40, 40)
+        _kbRing.Visible = false
+        _kbRing.Parent = g
+        local uc = Instance.new("UICorner"); uc.CornerRadius = UDim.new(1, 0); uc.Parent = _kbRing
+        local ust = Instance.new("UIStroke"); ust.Thickness = 2; ust.Color = C_GOLD; ust.Parent = _kbRing
+        _kfPool = {}
+        for i = 1, 5 do
+            local t = Instance.new("TextLabel")
+            t.BackgroundTransparency = 1
+            t.TextColor3 = WHITE
+            t.Font = Enum.Font.Code
+            t.TextSize = 13
+            t.TextStrokeTransparency = 0
+            t.TextStrokeColor3 = C_BLACK
+            t.Text = ""
+            t.TextXAlignment = Enum.TextXAlignment.Right
+            t.AutomaticSize = Enum.AutomaticSize.X
+            t.Size = UDim2.fromOffset(0, 18)
+            t.Visible = false
+            t.Parent = g
+            _kfPool[i] = t
+        end
+        _hsLinesBlk = {}
+        for i = 1, 6 do
+            local l = Instance.new("Frame")
+            l.BackgroundColor3 = C_BLACK; l.BorderSizePixel = 0
+            l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
+            l.Parent = g
+            _hsLinesBlk[i] = l
+        end
+        _hsLines = {}
+        for i = 1, 6 do
+            local l = Instance.new("Frame")
+            l.BackgroundColor3 = C_GOLD; l.BorderSizePixel = 0
+            l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
+            l.Parent = g
+            _hsLines[i] = l
+        end
+        _wmBg = Instance.new("Frame")
+        _wmBg.BackgroundColor3 = C_FILL
+        _wmBg.BorderSizePixel = 0
+        _wmBg.Position = UDim2.fromOffset(16, 16)
+        _wmBg.Size = UDim2.fromOffset(60, 24)
+        _wmBg.Visible = false
+        _wmBg.Parent = g
+        _wmText = Instance.new("TextLabel")
+        _wmText.BackgroundTransparency = 1
+        _wmText.TextColor3 = WHITE
+        _wmText.Font = Enum.Font.GothamBold
+        _wmText.TextSize = 13
+        _wmText.TextStrokeTransparency = 0.5
+        _wmText.TextStrokeColor3 = C_BLACK
+        _wmText.Text = "LuaHook"
+        _wmText.TextXAlignment = Enum.TextXAlignment.Left
+        _wmText.AutomaticSize = Enum.AutomaticSize.X
+        _wmText.Size = UDim2.fromOffset(0, 18)
+        _wmText.Position = UDim2.fromOffset(26, 19)
+        _wmText.Visible = false
+        _wmText.Parent = g
+        _wm.stats = Instance.new("TextLabel")
+        _wm.stats.BackgroundTransparency = 1
+        _wm.stats.TextColor3 = C_TEXT2
+        _wm.stats.Font = Enum.Font.Code
+        _wm.stats.TextSize = 12
+        _wm.stats.TextStrokeTransparency = 0.5
+        _wm.stats.TextStrokeColor3 = C_BLACK
+        _wm.stats.Text = ""
+        _wm.stats.TextXAlignment = Enum.TextXAlignment.Left
+        _wm.stats.AutomaticSize = Enum.AutomaticSize.X
+        _wm.stats.Size = UDim2.fromOffset(0, 18)
+        _wm.stats.Position = UDim2.fromOffset(100, 22)
+        _wm.stats.Visible = false
+        _wm.stats.Parent = g
+        _snds = {}
+        for i = 1, 4 do
+            local s = Instance.new("Sound")
+            s.Name = "_fxs" .. i
+            s.Volume = 0.5
+            s.Parent = SoundService
+            _snds[i] = s
+        end
+    end
+
+    local function triggerHitMarker(crit, lethal)
+        if not (_hmLines and _hmLines[1]) then return end
+        local now = tick()
+        if _hm.on and (now - _hm.t0) < 0.18 then
+            _hm.pop = math.min(_hm.pop + 1, 3)
+        else
+            _hm.pop = 0
+        end
+        _hm.on = true; _hm.t0 = now
+        _hm.color = lethal and Color3.fromRGB(255, 64, 78)
+            or (crit and Color3.fromRGB(255, 194, 75) or WHITE)
+    end
+
+    local function pushDamageNumber(p, dmg, crit, lethal, hitPos)
+        if not (_dnPool and hitPos) then return end
+        local now = tick()
+        local e = _dnByPlr[p]
+        if e and e.alive and (now - e.lastT) <= 0.9 then
+            e.total = e.total + dmg
+            e.t0 = now; e.lastT = now; e.popT = now; e.pos = hitPos
+            e.crit = e.crit or crit; e.lethal = e.lethal or lethal
+            return
+        end
+        local d
+        for _, cand in ipairs(_dnPool) do
+            local used = false
+            for _, active in ipairs(_dnActive) do
+                if active.d == cand then used = true break end
+            end
+            if not used then d = cand break end
+        end
+        if not d then return end
+        e = { d = d, p = p, total = dmg, pos = hitPos, t0 = now, lastT = now, popT = now,
+              drift = math.random(-8, 8), crit = crit, lethal = lethal, alive = true }
+        _dnByPlr[p] = e
+        table.insert(_dnActive, e)
+    end
+
+    local function dnRamp(total)
+        if total <= 25 then return C_GREY:Lerp(C_AMBER, total / 25) end
+        return C_AMBER:Lerp(C_ORANGE, (total - 25) / 25)
+    end
+
+    local KB_STREAK = { [2] = "DOUBLE", [3] = "TRIPLE", [4] = "QUAD" }
+    local function triggerKillBanner(p)
+        if not (_kbL1 and _kbL2) then return end
+        local now = tick()
+        if (now - _kb.lastKillT) <= 4 then _kb.streak = _kb.streak + 1 else _kb.streak = 1 end
+        _kb.lastKillT = now
+        _kb.on = true; _kb.t0 = now
+        local label = "ELIMINATED"
+        if _kb.streak >= 5 then label = _kb.streak .. "x"
+        elseif _kb.streak >= 2 then label = KB_STREAK[_kb.streak] end
+        _kb.line1 = (label:gsub("(.)", "%1 ")):sub(1, -2)
+        _kb.line2 = tostring(p.DisplayName or p.Name)
+    end
+
+    local function pushKillFeed(p, crit)
+        if not _kfPool then return end
+        table.insert(_kfItems, 1, { text = "You  ·  " .. tostring(p.DisplayName or p.Name), t0 = tick(), crit = crit and true or false })
+        while #_kfItems > 5 do table.remove(_kfItems) end
+    end
+
+    local function triggerSpark(hitPos)
+        if not (_hsLines and hitPos) then return end
+        _hs.on = true; _hs.t0 = tick(); _hs.pos = hitPos
+    end
+
+    local function triggerFlash()
+        if not _flashFrame then return end
+        _hf.on = true; _hf.t0 = tick()
+    end
+
+    local DIAG = { Vector2.new(1, 1), Vector2.new(-1, 1), Vector2.new(1, -1), Vector2.new(-1, -1) }
+    local INV_SQ2 = 0.70710678
+    local PLUS = { Vector2.new(0, -1), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(-1, 0) }
+
+    local function hideMarker()
+        _hm.on = false
+        for _, l in ipairs(_hmLines) do if l then l.Visible = false end end
+        if _hmLinesBlk then for _, l in ipairs(_hmLinesBlk) do if l then l.Visible = false end end end
+    end
+
+    local _fxThrT = 0
+    local function update()
+        local now = tick()
+        if now - _fxThrT < 0.0083 then return end
+        _fxThrT = now
+        local vp = C.ViewportSize
+        local cx, cy = vp.X * 0.5, vp.Y * 0.5
+
+        if _hm.on and _hmLines then
+            local a = now - _hm.t0
+            if a >= 0.18 then
+                hideMarker()
+            else
+                local snap = 1 - (1 - math.clamp(a / 0.07, 0, 1)) ^ 2
+                local gap = 5
+                local len = 8 * snap + _hm.pop
+                local th  = 2
+                local tr  = 1 - math.clamp((a - 0.09) / 0.09, 0, 1)
+                for i, l in ipairs(_hmLines) do
+                    if l then
+                        local nx, ny = DIAG[i].X * INV_SQ2, DIAG[i].Y * INV_SQ2
+                        local from = Vector2.new(cx + nx * gap, cy + ny * gap)
+                        local to   = Vector2.new(cx + nx * (gap + len), cy + ny * (gap + len))
+                        local w = math.abs(to.X - from.X)
+                        l.Position = UDim2.fromOffset(math.floor(math.min(from.X, to.X)), math.floor(math.min(from.Y, to.Y)))
+                        l.Size = UDim2.fromOffset(math.max(w, 1), th)
+                        l.BackgroundColor3 = _hm.color
+                        l.BackgroundTransparency = tr
+                        l.Visible = true
+                        local lb = _hmLinesBlk and _hmLinesBlk[i]
+                        if lb then
+                            lb.Position = UDim2.fromOffset(math.floor(math.min(from.X, to.X)) - 1, math.floor(math.min(from.Y, to.Y)) - 1)
+                            lb.Size = UDim2.fromOffset(math.max(w + 2, 1), th + 2)
+                            lb.BackgroundTransparency = tr
+                            lb.Visible = true
+                        end
+                    end
+                end
+            end
+        end
+
+        if _dnActive[1] then
+            for i = #_dnActive, 1, -1 do
+                local e = _dnActive[i]
+                local a = (now - e.t0) / 0.7
+                if a >= 1 then
+                    if e.d then e.d.Visible = false end
+                    e.alive = false
+                    if _dnByPlr[e.p] == e then _dnByPlr[e.p] = nil end
+                    table.remove(_dnActive, i)
+                elseif e.d then
+                    local sp = C:WorldToViewportPoint(e.pos)
+                    if sp.Z <= 0 then
+                        e.d.Visible = false
+                    else
+                        local d = e.d
+                        local ease = 1 - (1 - a) * (1 - a)
+                        local pop  = 1 + 0.25 * (1 - math.clamp((now - e.popT) / 0.12, 0, 1))
+                        d.TextSize = math.floor((14 + math.clamp(e.total / 50, 0, 1) * 8) * pop + 0.5)
+                        d.Text = tostring(math.floor(e.total + 0.5))
+                        if e.crit or e.lethal then d.TextColor3 = C_GOLD
+                        else d.TextColor3 = dnRamp(e.total) end
+                        d.Position = UDim2.fromOffset(math.floor(sp.X + e.drift * a), math.floor(sp.Y - 42 * ease))
+                        d.TextTransparency = a < 0.6 and 0 or (a - 0.6) / 0.4
+                        d.Visible = true
+                    end
+                end
+            end
+        end
+
+        if _kb.on then
+            local a = now - _kb.t0
+            if a >= 1.17 then
+                _kb.on = false
+                if _kbL1 then _kbL1.Visible = false end
+                if _kbL2 then _kbL2.Visible = false end
+                if _kbRing then _kbRing.Visible = false end
+            else
+                local y = cy - 140
+                local scale, tr = 1, 1
+                if a < 0.09 then scale = 0.6 + 0.4 * (a / 0.09)
+                elseif a > 0.79 then tr = 1 - (a - 0.79) / 0.38 end
+                if _kbL1 then
+                    _kbL1.Text = _kb.line1
+                    _kbL1.TextSize = math.floor(12 * scale + 0.5)
+                    _kbL1.Position = UDim2.fromOffset(math.floor(cx), math.floor(y))
+                    _kbL1.TextTransparency = tr
+                    _kbL1.Visible = true
+                end
+                if _kbL2 then
+                    _kbL2.Text = _kb.line2
+                    _kbL2.TextSize = math.floor(22 * scale + 0.5)
+                    _kbL2.Position = UDim2.fromOffset(math.floor(cx), math.floor(y + 16))
+                    _kbL2.TextTransparency = tr
+                    _kbL2.Visible = true
+                end
+                if _kbRing then
+                    if a < 0.32 then
+                        local f = a / 0.32
+                        local fe = 1 - (1 - f) ^ 2
+                        _kbRing.Position = UDim2.fromOffset(math.floor(cx - 20), math.floor(cy - 20))
+                        _kbRing.Size = UDim2.fromOffset(math.floor(12 + 80 * fe), math.floor(12 + 80 * fe))
+                        _kbRing.Visible = true
+                    else _kbRing.Visible = false end
+                end
+            end
+        end
+
+        if _kfPool then
+            local y0 = 110
+            for i, d in ipairs(_kfPool) do
+                local it = _kfItems[i]
+                if d then
+                    if not it or (now - it.t0) >= 5 then
+                        d.Visible = false
+                    else
+                        local a = now - it.t0
+                        local slide = 1 - (1 - math.clamp(a / 0.12, 0, 1)) ^ 2
+                        d.Text = it.text
+                        d.TextColor3 = it.crit and C_GOLD or WHITE
+                        d.TextSize = 13
+                        local rx = vp.X - 16 - d.TextBounds.X + (1 - slide) * 30
+                        local ry = y0 + (i - 1) * 18
+                        local tr = a < 4 and 1 or 1 - (a - 4)
+                        d.Position = UDim2.fromOffset(math.floor(rx), math.floor(ry))
+                        d.TextTransparency = 1 - tr
+                        d.Visible = true
+                    end
+                end
+            end
+            for i = #_kfItems, 1, -1 do
+                if (now - _kfItems[i].t0) >= 5 then table.remove(_kfItems, i) end
+            end
+        end
+
+        if _hs.on and _hsLines then
+            local a = (now - _hs.t0) / 0.18
+            if a >= 1 then
+                _hs.on = false
+                for _, l in ipairs(_hsLines) do if l then l.Visible = false end end
+                if _hsLinesBlk then for _, l in ipairs(_hsLinesBlk) do if l then l.Visible = false end end end
+            else
+                local sp = C:WorldToViewportPoint(_hs.pos)
+                if sp.Z > 0 then
+                    local rad = 4 + 8 * a
+                    local tr = 1 - a * a
+                    for i, l in ipairs(_hsLines) do
+                        if l then
+                            local th = (i - 1) * (math.pi / 3)
+                            local dx, dy = math.cos(th), math.sin(th)
+                            local from = Vector2.new(sp.X + dx * rad, sp.Y + dy * rad)
+                            local to   = Vector2.new(sp.X + dx * (rad + 5), sp.Y + dy * (rad + 5))
+                            l.Position = UDim2.fromOffset(math.floor(math.min(from.X, to.X)), math.floor(math.min(from.Y, to.Y)))
+                            l.Size = UDim2.fromOffset(math.max(math.abs(to.X - from.X), 2), 2)
+                            l.BackgroundTransparency = tr
+                            l.Visible = true
+                        end
+                    end
+                end
+            end
+        end
+
+        if _hf.on and _flashFrame then
+            local a = (now - _hf.t0) / 0.16
+            if a >= 1 then
+                _hf.on = false
+                _flashFrame.Visible = false
+            else
+                _flashFrame.BackgroundTransparency = 0.78 + 0.22 * a
+                _flashFrame.Visible = true
+            end
+        end
+
+        if _vgFrames then
+            local show = false
+            if (now - _vgLastPoll) > 0.1 then
+                _vgLastPoll = now
+                local hp, mh = getHealth(LP)
+                _vgHP = (mh and mh > 0) and hp / mh or 1
+            end
+            if _vgHP > 0 and _vgHP < 0.35 then
+                local sev = math.clamp((0.35 - _vgHP) / 0.25, 0, 1)
+                local tr = (0.85 - 0.35 * sev) + 0.06 * (0.5 + 0.5 * math.sin(now * (0.8 + 0.6 * sev) * 6.283185))
+                tr = math.clamp(tr, 0, 1)
+                for _, f in ipairs(_vgFrames) do
+                    f.BackgroundTransparency = tr
+                    if not f.Visible then f.Visible = true end
+                end
+                show = true
+            end
+            if not show then
+                for _, f in ipairs(_vgFrames) do if f.Visible then f.Visible = false end end
+            end
+        end
+
+        if _wmText and Config.HUDWatermark then
+            _wm.fps = _wm.fps + (1 / math.max(now - (_wm.lastT or now), 0.001) - _wm.fps) * 0.1
+            _wm.lastT = now
+            if (now - _wm.pingT) > 1 then
+                _wm.pingT = now
+                pcall(function()
+                    _wm.ping = math.floor(StatsService.Network.ServerStatsItem["Data Ping"]:GetValue() + 0.5)
+                end)
+            end
+            _wmText.Visible = true
+            if not _wm.bw then
+                pcall(function() local tb = _wmText.TextBounds; if tb and tb.X > 0 then _wm.bw = tb.X end end)
+            end
+            local bw = _wm.bw or 52
+            if (now - _wm.strT) > 0.25 then
+                _wm.strT = now
+                local sess = now - _sessT0
+                _wm.str = string.format("%d fps · %d ms · %02d:%02d · %d kills",
+                    math.floor(_wm.fps + 0.5), _wm.ping,
+                    math.floor(sess / 60), math.floor(sess % 60), _sessKills)
+            end
+            if _wm.stats then
+                _wm.stats.Text = _wm.str
+                _wm.stats.Position = UDim2.fromOffset(26 + bw + 12, 22)
+                _wm.stats.Visible = true
+            end
+            if _wmBg then
+                _wmBg.Size = UDim2.fromOffset(10 + bw + 12 + (bw + 12) + 10, 24)
+                _wmBg.Visible = true
+            end
+        elseif _wmText then
+            _wmText.Visible = false
+            if _wm.stats then _wm.stats.Visible = false end
+            if _wmBg then _wmBg.Visible = false end
+        end
+    end
+
+    local function hideAllFX()
+        if _hmLines then hideMarker() end
+        for i = #_dnActive, 1, -1 do
+            local e = _dnActive[i]
+            if e.d then e.d.Visible = false end
+            _dnActive[i] = nil
+        end
+        table.clear(_dnByPlr)
+        _kb.on = false
+        if _kbL1 then _kbL1.Visible = false end
+        if _kbL2 then _kbL2.Visible = false end
+        if _kbRing then _kbRing.Visible = false end
+        table.clear(_kfItems)
+        if _kfPool then for _, d in ipairs(_kfPool) do if d then d.Visible = false end end end
+        _hs.on = false
+        if _hsLines then for _, l in ipairs(_hsLines) do if l then l.Visible = false end end end
+        if _hsLinesBlk then for _, l in ipairs(_hsLinesBlk) do if l then l.Visible = false end end end
+        _hf.on = false
+        if _flashFrame then _flashFrame.Visible = false end
+        if _vgFrames then for _, f in ipairs(_vgFrames) do f.Visible = false end end
+        if _wmBg then _wmBg.Visible = false end
+        if _wmText then _wmText.Visible = false end
+        if _wm.stats then _wm.stats.Visible = false end
+    end
+
+    local function hookHumanoid(char)
+        if _hcConn then _hcConn:Disconnect(); _hcConn = nil end
+        if not char then return end
+        task.spawn(function()
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if not hum then pcall(function() hum = char:WaitForChild("Humanoid", 5) end) end
+            if not hum or not _started or char ~= LP.Character then return end
+            _lastHP = hum.Health
+            _hcConn = hum.HealthChanged:Connect(function(h)
+                local prev = _lastHP or h
+                _lastHP = h
+                if prev - h > 0.5 then triggerFlash() end
+            end)
+        end)
+    end
+
+    function HUDPlus.start()
+        if _started then return end
+        _started = true
+        allocate()
+        hookHumanoid(LP.Character)
+        _charConn = LP.CharacterAdded:Connect(function(c) if _started then hookHumanoid(c) end end)
+        if not _updConn then
+            _updConn = RunService.RenderStepped:Connect(function()
+                if _started then pcall(update) end
+            end)
+        end
+    end
+
+    function HUDPlus.stop()
+        if not _started then return end
+        _started = false
+        if _updConn then _updConn:Disconnect(); _updConn = nil end
+        if _hcConn then _hcConn:Disconnect(); _hcConn = nil end
+        if _charConn then _charConn:Disconnect(); _charConn = nil end
+        hideAllFX()
+    end
+
+    function HUDPlus.onTarget(p, dmg)
+        if not _started then return end
+        local lethal = not isAlive(p)
+        local crit = dmg >= 30
+        triggerHitMarker(crit, lethal)
+        local char = p.Character
+        local rp = char and (char:FindFirstChild("HitboxHead") or char:FindFirstChild("Head")
+            or char:FindFirstChild("HumanoidRootPart"))
+        local hitPos = rp and rp.Position
+        if hitPos then pushDamageNumber(p, dmg, crit, lethal, hitPos) end
+        if crit and hitPos then triggerSpark(hitPos) end
+        if lethal then
+            _sessKills = _sessKills + 1
+            triggerKillBanner(p)
+            pushKillFeed(p, crit)
+        end
+    end
+    HUDPlus.onIncoming = triggerFlash
+    HUDPlus.triggerFlash = triggerFlash
+end
+
+task.spawn(function()
+    local lastHP = {}
+    while true do
+        task.wait(0.15)
+        if not HUDPlus then break end
+        for _, p in ipairs(getSafePlayers()) do
+            if p ~= LP and p.Character and isAlive(p) then
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    local last = lastHP[p]
+                    if last and hum.Health < last - 0.5 then
+                        HUDPlus.onTarget(p, last - hum.Health)
+                    end
+                    lastHP[p] = hum.Health
+                end
+            else
+                lastHP[p] = nil
+            end
+        end
+    end
+end)
+
+print("[v12.0] 第四段-1 载入完成")
+-- ============================================================
+-- 第四段-2：游戏外观 + 天气（Linoria 版）
+-- ============================================================
+
+-- ============ 游戏外观（GameVisuals）============
+local GameVisuals = {}
+do
+    local NONE_COSMETIC   = "NONE_COSMETIC"
+    local RANDOM_COSMETIC = "RANDOM_COSMETIC"
+    local _log = {}
+    local function note(msg)
+        table.insert(_log, os.date("%H:%M:%S") .. "  " .. msg)
+        if #_log > 60 then table.remove(_log, 1) end
+    end
+    GameVisuals.Choices = {}
+    local _spoof = {}
+    local _favOverride = {}
+    local _maskTarget, _maskInner = nil, nil
+    local _maskConn = nil
+
+    local function maskActive()
+        if _maskTarget == nil then return false end
+        return true
+    end
+    local function maskRemove()
+        if _maskTarget == nil then return end
+        local target, inner = _maskTarget, _maskInner
+        _maskTarget, _maskInner = nil, nil
+        pcall(function() rawset(target, "Data", inner) end)
+    end
+    local function everyCosmetic(real)
+        local out = {}
+        if type(real) == "table" then
+            for k, v in pairs(real) do out[k] = v end
+        end
+        pcall(function()
+            local cos = Rivals.Cosmetics and Rivals.Cosmetics.Cosmetics
+            if type(cos) ~= "table" then return end
+            for name in pairs(cos) do
+                if out[name] == nil then out[name] = true end
+            end
+        end)
+        return out
+    end
+    local function maskNeeded()
+        return Config.GVUnlockAll == true
+    end
+    local function syncMask()
+        maskRemove()
+        if not maskNeeded() then return end
+        local ok = pcall(function()
+            local PDC = loadGameModule(LP.PlayerScripts, {"Controllers","PlayerDataController"})
+            if not PDC then return end
+            local cur = PDC.CurrentData
+            if cur == nil then return end
+            local inner = rawget(cur, "Data")
+            if type(inner) ~= "table" then return end
+            local proxy = setmetatable({}, {
+                __index = function(_, k)
+                    local p = _spoof[k]
+                    if p ~= nil then return p(inner[k]) end
+                    return inner[k]
+                end,
+                __newindex = function(_, k, v) inner[k] = v end,
+            })
+            rawset(cur, "Data", proxy)
+            _maskTarget, _maskInner = cur, inner
+        end)
+    end
+
+    function GameVisuals.setUnlockAll(on)
+        Config.GVUnlockAll = (on == true)
+        _spoof.CosmeticInventory = on and everyCosmetic or nil
+        syncMask()
+        note("解锁全部 " .. tostring(on))
+    end
+    function GameVisuals.enable()
+        Config.GameVisuals = true
+        pcall(syncMask)
+        note("启用")
+    end
+    function GameVisuals.disable()
+        Config.GameVisuals = false
+        maskRemove()
+        GameVisuals.Choices = {}
+        _favOverride = {}
+        _spoof.CosmeticInventory = nil
+        note("关闭")
+    end
+    function GameVisuals.restore()
+        GameVisuals.disable()
+    end
+    function GameVisuals.summary() return _log end
+    function GameVisuals.ready() return maskActive() end
+    function GameVisuals.playEmote(name) end
+    function GameVisuals.emoteList() return {"None"} end
+    function GameVisuals.setWeapon(v) end
+    function GameVisuals.setSkin(v) end
+    function GameVisuals.setCharm(v) end
+    function GameVisuals.setWrap(v) end
+    function GameVisuals.setFinisher(v) end
+    function GameVisuals.setWrapInverted(v) end
+    function GameVisuals.applyRankedCharm(a, b) end
+    function GameVisuals.refreshRankCharmMeta() end
+    function GameVisuals.syncEmotes(v) end
+    function GameVisuals.weaponList() return {"None"} end
+    function GameVisuals.skinList() return {"None"} end
+    function GameVisuals.charmList() return {"None"} end
+    function GameVisuals.wrapList() return {"None"} end
+    function GameVisuals.finisherList() return {"None"} end
+    function GameVisuals.rankNames() return {"Bronze 1"} end
+    function GameVisuals.rankedCharmsFor() return {"Held weapon"} end
+    function GameVisuals.lastWeapon() return nil end
+    GameVisuals.uiAlive = true
+end
+
+-- ============ 天气（Weather）============
+local Weather = {}
+;(function()
+    local SoundService = game:GetService("SoundService")
+    local TweenService = game:GetService("TweenService")
+    local Vec   = Vector3.new
+    local WHITE = Color3.new(1, 1, 1)
+    local _folder = nil
+    local function getFolder()
+        if _folder and _folder.Parent then return _folder end
+        local f = Instance.new("Folder"); f.Name = "_wx"; f:SetAttribute("WX_Custom", true)
+        f.Parent = W
+        _folder = f; return f
+    end
+    local _rain = { drops = {}, conn = nil, folder = nil, dir = nil }
+    local RAIN_RADIUS = 70
+    local RAIN_TOP    = 70
+    local RAIN_BOT    = -28
+    local RAIN_MAX    = 420
+    local function rainFolder()
+        if _rain.folder and _rain.folder.Parent then return _rain.folder end
+        local f = Instance.new("Folder"); f.Name = "_wxRain"; f:SetAttribute("WX_Custom", true)
+        f.Parent = getFolder()
+        _rain.folder = f; return f
+    end
+    local function makeDrop(parent, streakLen, width, color, transp)
+        local part = Instance.new("Part")
+        part.Anchored = true; part.CanCollide = false; part.CanQuery = false; part.CanTouch = false
+        part.CastShadow = false; part.Massless = true; part.Transparency = 1
+        part.Size = Vec(0.05,0.05,0.05)
+        part:SetAttribute("WX_Custom", true)
+        local a0 = Instance.new("Attachment"); a0.Parent = part
+        local a1 = Instance.new("Attachment"); a1.Position = Vec(0.12, -1, 0.05).Unit * streakLen; a1.Parent = part
+        local beam = Instance.new("Beam")
+        beam.Attachment0 = a0; beam.Attachment1 = a1
+        beam.Segments = 1; beam.FaceCamera = true
+        beam.Width0 = width; beam.Width1 = width * 0.55
+        beam.LightEmission = 0.35; beam.LightInfluence = 0
+        beam.Color = ColorSequence.new(color)
+        beam.Transparency = NumberSequence.new(transp)
+        beam.Parent = part
+        part.Parent = parent
+        return part, a1, beam
+    end
+    local function seedDrop(d, camPos)
+        local ang = math.random() * math.pi * 2
+        local rad = math.sqrt(math.random()) * RAIN_RADIUS
+        local y   = camPos.Y + RAIN_TOP - math.random() * (RAIN_TOP - RAIN_BOT)
+        d.pos = Vec(camPos.X + math.cos(ang) * rad, y, camPos.Z + math.sin(ang) * rad)
+    end
+    local function newDrop(folder, i, camPos)
+        local base, width, transp, spd0
+        if (i % 3) ~= 0 then
+            base, width, transp = 5 + math.random() * 3, 0.10, 0.22
+            spd0 = 150 + math.random() * 30
+        else
+            base, width, transp = 3 + math.random() * 2, 0.06, 0.55
+            spd0 = 120 + math.random() * 30
+        end
+        local part, a1, beam = makeDrop(folder, base, width, Color3.fromRGB(180, 202, 232), transp)
+        local d = { part = part, a1 = a1, beam = beam, base = base, len = base,
+                    w0 = width, t0 = transp, spd0 = spd0, spd = spd0 }
+        seedDrop(d, camPos)
+        part.CFrame = CFrame.new(d.pos)
+        return d
+    end
+    local function tuneRain()
+        local folder = rainFolder()
+        local I = math.clamp(Config.WeatherIntensity or 1, 0.15, 2)
+        local n = math.clamp(math.floor(150 * (I < 1 and math.exp(1.75 * (I - 1)) or math.exp(0.85 * (I - 1)))), 16, RAIN_MAX)
+        local drops = _rain.drops
+        local camPos = C and C.CFrame.Position or Vec(0, 0, 0)
+        for i = #drops, n + 1, -1 do
+            drops[i].part:Destroy()
+            drops[i] = nil
+        end
+        for i = #drops + 1, n do
+            drops[i] = newDrop(folder, i, camPos)
+        end
+    end
+    local function buildRain()
+        if _rain.folder then pcall(function() _rain.folder:Destroy() end); _rain.folder = nil end
+        table.clear(_rain.drops)
+        _rain.dir = Vec(0.12, -1, 0.05).Unit
+        tuneRain()
+    end
+    local function startRain()
+        if _rain.conn then return end
+        _rain.conn = RunService.Heartbeat:Connect(function(dt)
+            if not Config.Weather or Config.WeatherType ~= "Rain" then return end
+            if not C then return end
+            local camPos = C.CFrame.Position
+            local r2 = RAIN_RADIUS * RAIN_RADIUS
+            for i = 1, #_rain.drops do
+                local d = _rain.drops[i]
+                local p = d.pos + _rain.dir * (d.spd * dt)
+                local relX, relY, relZ = p.X - camPos.X, p.Y - camPos.Y, p.Z - camPos.Z
+                if relY < RAIN_BOT or (relX * relX + relZ * relZ) > r2 then
+                    seedDrop(d, camPos)
+                    p = d.pos
+                end
+                d.pos = p
+                if d.part then d.part.CFrame = CFrame.new(p) end
+            end
+        end)
+    end
+    local function stopRain()
+        if _rain.conn then _rain.conn:Disconnect(); _rain.conn = nil end
+        if _rain.folder then pcall(function() _rain.folder:Destroy() end); _rain.folder = nil end
+        table.clear(_rain.drops)
+        _rain.dir = nil
+    end
+    local function applyType(name)
+        stopRain()
+        if name == "Rain" then
+            buildRain(); startRain()
+        end
+    end
+    function Weather.enableWeather()
+        Config.Weather = true
+        applyType(Config.WeatherType or "Rain")
+    end
+    function Weather.disableWeather()
+        Config.Weather = false
+        stopRain()
+    end
+    function Weather.setType(name)
+        Config.WeatherType = name
+        if Config.Weather then applyType(name) end
+    end
+    function Weather.setIntensity(v)
+        Config.WeatherIntensity = math.clamp(v, 0.15, 2)
+        if Config.Weather and Config.WeatherType == "Rain" then tuneRain() end
+    end
+    function Weather.setSoundVolume(v) Config.WeatherSoundVolume = v end
+    function Weather.toggleStorm(on) Config.WeatherStorm = on end
+    function Weather.toggleMood(on) Config.WeatherMood = on end
+    function Weather.toggleMeteors(on) Config.WeatherMeteors = on end
+    function Weather.toggleShootingStars(on) Config.WeatherShootingStars = on end
+    function Weather.toggleClock(on) Config.WeatherClockDial = on end
+    function Weather.togglePuddles(on) Config.WeatherPuddles = on end
+    function Weather.setSkybox(name) Config.SkyboxPreset = name end
+    function Weather.toggleCelestial(on) Config.SkyboxHideCelestial = on end
+    function Weather.toggleGodRays(on) Config.WeatherGodRays = on end
+    function Weather.toggleRainbow(on) Config.WeatherRainbow = on end
+    function Weather.setStormMin(v) Config.WeatherStormMin = math.clamp(v, 1, 30) end
+    function Weather.setStormVar(v) Config.WeatherStormVar = math.clamp(v, 0, 30) end
+    function Weather.setMeteorRate(v) Config.WeatherMeteorRate = math.clamp(v, 0.25, 3) end
+    function Weather.setStarRate(v) Config.WeatherStarRate = math.clamp(v, 0.25, 3) end
+    function Weather.init() if Config.Weather then Weather.enableWeather() end end
+    function Weather.unload() Weather.disableWeather() end
+end
+
+-- ============ 新分页（HUD + 外观 + 天气）============
+task.spawn(function()
+    task.wait(1)
+    if not Window then return end
+    local HUDTab = Window:AddTab('介面')
+    local GameTab = Window:AddTab('外觀')
+    local WXTab = Window:AddTab('天氣')
+
+    do
+        local M = HUDTab:AddLeftGroupbox('主控')
+        M:AddToggle('HUD_Enabled', { Text = '啟用介面', Default = true, Callback = function(v) if v then HUDPlus.start() else HUDPlus.stop() end end })
+        M:AddToggle('HUD_Watermark', { Text = '浮水印', Default = true, Callback = function(v) Config.HUDWatermark = v end })
+
+        local F = HUDTab:AddRightGroupbox('命中回饋')
+        F:AddToggle('FX_HitMarker', { Text = '命中標記', Default = true, Callback = function(v) Config.FXHitMarker = v end })
+        F:AddToggle('FX_DamageNumbers', { Text = '傷害數字', Default = true, Callback = function(v) Config.FXDamageNumbers = v end })
+        F:AddToggle('FX_KillBanner', { Text = '擊殺橫幅', Default = true, Callback = function(v) Config.FXKillBanner = v end })
+        F:AddToggle('FX_KillFeed', { Text = '擊殺訊息', Default = true, Callback = function(v) Config.FXKillFeed = v end })
+        F:AddToggle('FX_HeadshotSpark', { Text = '爆頭火花', Default = true, Callback = function(v) Config.FXHeadshotSpark = v end })
+        F:AddToggle('FX_HitFlash', { Text = '受擊紅閃', Default = true, Callback = function(v) Config.FXHitFlash = v end })
+        F:AddToggle('FX_LowHPVignette', { Text = '低血暗角', Default = true, Callback = function(v) Config.FXLowHPVignette = v end })
+    end
+
+    do
+        local L = GameTab:AddLeftGroupbox('外觀')
+        L:AddToggle('GV_Enabled', { Text = '啟用', Default = false, Callback = function(v) if v then GameVisuals.enable() else GameVisuals.disable() end end })
+        local D = L:AddDependencyBox()
+        D:AddToggle('GV_UnlockAll', { Text = '解鎖全部', Default = false, Callback = function(v) GameVisuals.setUnlockAll(v) end })
+        D:SetupDependencies({ { Toggles.GV_Enabled, true } })
+        L:AddButton({ Text = '重置全部', Func = function() pcall(GameVisuals.restore) end })
+    end
+
+    do
+        local L = WXTab:AddLeftGroupbox('天氣')
+        L:AddToggle('WX_Enabled', { Text = '啟用', Default = false, Callback = function(v) if v then Weather.enableWeather() else Weather.disableWeather() end end })
+        local D = L:AddDependencyBox()
+        D:AddDropdown('WX_Type', { Values = {'Rain','Snow','Petals','Autumn','Mist','Ash','Sandstorm','Embers','Fireflies'}, Default = 'Rain', Text = '降水', Callback = function(v) Weather.setType(v) end })
+        D:AddSlider('WX_Intensity', { Text = '強度', Default = 1, Min = 0.15, Max = 2, Rounding = 2, Callback = function(v) Weather.setIntensity(v) end })
+        D:AddSlider('WX_Volume', { Text = '音量', Default = 0.35, Min = 0, Max = 1, Rounding = 2, Callback = function(v) Weather.setSoundVolume(v) end })
+        D:AddToggle('WX_Storm', { Text = '風暴與閃電', Default = false, Callback = function(v) Weather.toggleStorm(v) end })
+        D:AddToggle('WX_Meteors', { Text = '流星', Default = false, Callback = function(v) Weather.toggleMeteors(v) end })
+        D:AddToggle('WX_Stars', { Text = '流星雨', Default = false, Callback = function(v) Weather.toggleShootingStars(v) end })
+        D:AddToggle('WX_Puddles', { Text = '水窪', Default = false, Callback = function(v) Weather.togglePuddles(v) end })
+        D:SetupDependencies({ { Toggles.WX_Enabled, true } })
+    end
+end)
+
+Library:Notify('v12.0 第四段载入完成', 4)
+print("[v12.0] 第四段-2 载入完成")
+print("[v12.0] 全部载入完成")
