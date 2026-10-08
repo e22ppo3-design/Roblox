@@ -577,31 +577,33 @@ local function identityIsSafe()
 end
 local function atId2(fn, ...)
     if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
+    local args = table.pack(...)
     local done, ok, res = false, false, nil
     task.spawn(function()
         local okPrev, prev = pcall(_identGet)
         if not okPrev then return end
         if not pcall(_identSet, 2) then return end
         done = true
-        ok, res = pcall(fn, ...)
+        ok, res = pcall(fn, table.unpack(args, 1, args.n))
         pcall(_identSet, prev)
     end)
     if done then return ok, res end
-    return pcall(fn, ...)
+    return pcall(fn, table.unpack(args, 1, args.n))
 end
 local function atId8(fn, ...)
     if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
+    local args = table.pack(...)
     local done, ok, res = false, false, nil
     task.spawn(function()
         local okPrev, prev = pcall(_identGet)
         if not okPrev then return end
         if not pcall(_identSet, 8) then return end
         done = true
-        ok, res = pcall(fn, ...)
+        ok, res = pcall(fn, table.unpack(args, 1, args.n))
         pcall(_identSet, prev)
     end)
     if done then return ok, res end
-    return pcall(fn, ...)
+    return pcall(fn, table.unpack(args, 1, args.n))
 end
 local _identityIsSafeFn = (function()
     local latched, killed = nil, false
