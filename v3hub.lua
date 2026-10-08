@@ -1,9 +1,4 @@
--- ============================================================
--- v3 Hub // RIVALS v11.0
--- ============================================================
-
 local V3HUB_SELF_URL = "https://raw.githubusercontent.com/e22ppo3-design/Roblox/main/v3hub.lua"
-
 task.spawn(function()
     local ok = pcall(function()
         local queueFn = queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport)
@@ -12,7 +7,6 @@ task.spawn(function()
         queueFn("loadstring(game:HttpGet('" .. V3HUB_SELF_URL .. "'))()")
     end)
 end)
-
 local hookmetamethod = hookmetamethod
 local getrawmetatable = getrawmetatable
 local setreadonly = setreadonly
@@ -34,7 +28,6 @@ local gethiddenproperty = gethiddenproperty or get_hidden_property
 local setfflag = setfflag or setfastflag or set_fflag
 local getfflag = getfflag or getfastflag
 local debugLib = debug
-
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
 local UIS = game:GetService("UserInputService")
@@ -49,9 +42,9 @@ local SoundService = game:GetService("SoundService")
 local TextService = game:GetService("TextService")
 local TweenService = game:GetService("TweenService")
 local StatsService = game:GetService("Stats")
-
-W:GetPropertyChangedSignal("CurrentCamera"):Connect(function() C = W.CurrentCamera end)
-
+W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+    C = W.CurrentCamera
+end)
 do
     if getgenvFn and hookfunction and newcclosure and getrenv then
         getgenvFn().__LH_SetmtBP = game
@@ -76,7 +69,6 @@ do
         if not ok then getgenvFn().__LH_SetmtBP = nil end
     end
 end
-
 if hookmetamethod and getrawmetatable and setreadonly then
     local mt = getrawmetatable(game)
     pcall(function() setreadonly(mt, false) end)
@@ -96,7 +88,6 @@ if hookmetamethod and getrawmetatable and setreadonly then
     end)
     pcall(function() setreadonly(mt, true) end)
 end
-
 local function nukeConnections()
     if not getconnections then return end
     pcall(function()
@@ -111,7 +102,6 @@ local function nukeConnections()
     end)
 end
 nukeConnections()
-
 RS.DescendantAdded:Connect(function(obj)
     if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
         local n = obj.Name:lower()
@@ -121,20 +111,19 @@ RS.DescendantAdded:Connect(function(obj)
         end
     end
 end)
-
 LP.CharacterAdded:Connect(function()
     task.wait(0.5)
     nukeConnections()
 end)
-
 if hookmetamethod then
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
-        if checkcaller() and key == "Kick" and self == LP then return function() end end
+        if checkcaller() and key == "Kick" and self == LP then
+            return function() end
+        end
         return oldIndex(self, key)
     end)
 end
-
 task.spawn(function()
     local tags = {"anticheat","ac","detection","ban","kick","security","moderation"}
     local function procAC(o)
@@ -153,7 +142,6 @@ task.spawn(function()
     for _, o in ipairs(game:GetDescendants()) do procAC(o) end
     game.DescendantAdded:Connect(procAC)
 end)
-
 task.spawn(function()
     if not hookfunction or not getgc or not getfenv then return end
     pcall(function()
@@ -180,41 +168,34 @@ task.spawn(function()
         end
     end)
 end)
-
 pcall(function()
     local fakeEv = Instance.new("RemoteEvent")
     fakeEv.Name = "ClientAlert"
     fakeEv.Parent = LP
 end)
-
 local Modules = RS:WaitForChild("Modules", 10)
 local Utility, EnumLibrary, CosmeticLibrary, ItemLibrary
 pcall(function() Utility = require(Modules:WaitForChild("Utility", 5)) end)
 pcall(function() EnumLibrary = require(Modules:WaitForChild("EnumLibrary", 5)) end)
 pcall(function() CosmeticLibrary = require(Modules:WaitForChild("CosmeticLibrary", 5)) end)
 pcall(function() ItemLibrary = require(Modules:WaitForChild("ItemLibrary", 5)) end)
-
 local PlayerScripts = LP:WaitForChild("PlayerScripts", 10)
 local Controllers = PlayerScripts and PlayerScripts:FindFirstChild("Controllers")
 local FighterController, CameraController
 pcall(function() FighterController = require(Controllers:WaitForChild("FighterController", 5)) end)
 pcall(function() CameraController = require(Controllers:WaitForChild("CameraController", 5)) end)
-
 local GunModule, MeleeModule, KnifeModule, GameplayUtility
 pcall(function() GunModule = require(PlayerScripts:WaitForChild("Modules", 8):WaitForChild("ItemTypes", 5):WaitForChild("Gun", 5)) end)
 pcall(function() MeleeModule = require(PlayerScripts:WaitForChild("Modules", 8):WaitForChild("ItemTypes", 5):WaitForChild("Melee", 5)) end)
 pcall(function() KnifeModule = require(PlayerScripts:WaitForChild("Modules", 8):WaitForChild("Items", 5):WaitForChild("Knife", 5)) end)
 pcall(function() GameplayUtility = require(Modules:WaitForChild("GameplayUtility", 5)) end)
-
 local localFighter = FighterController and FighterController.LocalFighter
-
 local Remotes = RS:FindFirstChild("Remotes")
 local Replication = Remotes and Remotes:FindFirstChild("Replication")
 local FighterRemote = Replication and Replication:FindFirstChild("Fighter")
 local UseItem = FighterRemote and FighterRemote:FindFirstChild("UseItem")
 local SetControls = FighterRemote and FighterRemote:FindFirstChild("SetControls")
 local UpdateCameraRotation = FighterRemote and FighterRemote:FindFirstChild("UpdateCameraRotation")
-
 local _fighterCache = nil
 local _fighterCacheTime = 0
 local function getLocalFighter()
@@ -222,7 +203,9 @@ local function getLocalFighter()
     if _fighterCache and (now - _fighterCacheTime) < 0.25 and _fighterCache.EquippedItem ~= nil then
         return _fighterCache
     end
-    local ok, fc = pcall(function() return require(LP.PlayerScripts.Controllers.FighterController) end)
+    local ok, fc = pcall(function()
+        return require(LP.PlayerScripts.Controllers.FighterController)
+    end)
     if ok and fc and fc.LocalFighter then
         _fighterCache = fc.LocalFighter
         _fighterCacheTime = now
@@ -237,7 +220,6 @@ LP.CharacterAdded:Connect(function()
     task.wait(0.5)
     getLocalFighter()
 end)
-
 local S = {
     SilentEnabled = false, SilentHitPart = "Head", SilentHitChance = 100, SilentFOV = 150,
     SilentAutoShoot = false, SilentFollowMuzzle = false, SilentWallCheck = true,
@@ -364,10 +346,8 @@ local S = {
     HUDWatermark = true,
     HUDWatermarkStats = true,
 }
-
 local hasMouseMoveRel = type(mousemoverel) == "function"
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
-
 local State = {
     Target = nil, CamPos = Vector3.zero,
     AimbotTarget = nil, AimbotPart = nil,
@@ -410,7 +390,6 @@ local State = {
     RagePhysRate = "off", RageFPDHPath = "not attempted",
     RageImmuneOverride = 0, RageFireWhy = nil,
 }
-
 local function worldToScreen(pos, cam)
     local c = cam or C
     if not c then return Vector2.new(0, 0), false end
@@ -418,13 +397,11 @@ local function worldToScreen(pos, cam)
     if not ok or not v then return Vector2.new(0, 0), false end
     return Vector2.new(v.X, v.Y), on
 end
-
 local function screenCenter(cam)
     local c = cam or C
     if c then return Vector2.new(c.ViewportSize.X / 2, c.ViewportSize.Y / 2) end
     return Vector2.new(960, 540)
 end
-
 local HP_RAMP_STOPS = {
     { 0.00, Color3.fromRGB(255,  68,  54) },
     { 0.20, Color3.fromRGB(255, 122,  61) },
@@ -444,7 +421,6 @@ local function hpRamp(frac)
     end
     return HP_RAMP_STOPS[#HP_RAMP_STOPS][2]
 end
-
 local function getHitPartName(char, partName)
     if not char then return nil end
     local map = {
@@ -456,7 +432,6 @@ local function getHitPartName(char, partName)
     if p and p:IsA("BasePart") then return p end
     return char:FindFirstChild("HumanoidRootPart")
 end
-
 local function envIdOf(player)
     local id = nil
     pcall(function()
@@ -469,7 +444,6 @@ local function envIdOf(player)
     end)
     return id
 end
-
 local function isTeammate(player)
     if player == LP then return true end
     local myEnv, theirEnv = envIdOf(LP), envIdOf(player)
@@ -482,19 +456,16 @@ local function isTeammate(player)
     end
     return a == b
 end
-
 local function isEnemy(plr)
     if not plr or plr == LP then return false end
     if not S.TeamCheck then return true end
     return not isTeammate(plr)
 end
-
 local function isAlive(player)
     local c = player.Character
     local h = c and c:FindFirstChildOfClass("Humanoid")
     return h ~= nil and h.Health > 0
 end
-
 local _safePlayersCache = nil
 local function getSafePlayers()
     if _safePlayersCache then return _safePlayersCache end
@@ -507,19 +478,16 @@ local function getSafePlayers()
 end
 Players.PlayerAdded:Connect(function() _safePlayersCache = nil end)
 Players.PlayerRemoving:Connect(function() _safePlayersCache = nil end)
-
 local function getHealth(player)
     if not player.Character then return 0, 100 end
     local h = player.Character:FindFirstChildOfClass("Humanoid")
     if not h then return 0, 100 end
     return h.Health, h.MaxHealth
 end
-
 local function getEquippedItem()
     local lf = getLocalFighter()
     return lf and lf.EquippedItem or nil
 end
-
 local function getWeaponName(player)
     if not player or not player.Character then return "?" end
     local ok, res = pcall(function()
@@ -535,7 +503,6 @@ local function getWeaponName(player)
     if ok and type(res) == "string" and res ~= "" then return res end
     return "?"
 end
-
 local visParams = RaycastParams.new()
 visParams.FilterType = Enum.RaycastFilterType.Exclude
 local _visFilterChar = nil
@@ -552,7 +519,6 @@ local function isVisible(worldPos)
     if hitModel and Players:GetPlayerFromCharacter(hitModel) then return true end
     return (result.Position - worldPos).Magnitude < 3
 end
-
 local SANE_POS_LIMIT = 100000
 local function isSanePos(p)
     return p == p
@@ -560,14 +526,12 @@ local function isSanePos(p)
         and math.abs(p.Y) < SANE_POS_LIMIT
         and math.abs(p.Z) < SANE_POS_LIMIT
 end
-
 local function posInPart(pos, part)
     if not part or not part.Parent then return false end
     local lpv = part.CFrame:PointToObjectSpace(pos)
     local s = part.Size * 0.5
     return math.abs(lpv.X) <= s.X and math.abs(lpv.Y) <= s.Y and math.abs(lpv.Z) <= s.Z
 end
-
 local function posIsOOB(pos)
     local ok, result = pcall(function()
         for _, p in ipairs(CollectionService:GetTagged("OutOfBoundsSafePart")) do
@@ -580,20 +544,17 @@ local function posIsOOB(pos)
     end)
     return ok and result == true
 end
-
 local function killFloor()
     local ok, val = pcall(function() return W.FallenPartsDestroyHeight end)
     if ok and type(val) == "number" and val == val then return val + S.RageKillPlaneBuffer end
     return -400
 end
-
 local function clampHop(targetPos, fromPos, maxHop)
     local d = targetPos - fromPos
     local m = d.Magnitude
     if m <= maxHop or m == 0 then return targetPos end
     return fromPos + d * (maxHop / m)
 end
-
 local _identGet, _identSet, _identTried = nil, nil, false
 local function identEnsure()
     if _identTried then return _identSet ~= nil end
@@ -606,7 +567,6 @@ local function identEnsure()
     State.RageRawSet = _identSet ~= nil
     return _identSet ~= nil
 end
-
 local _identitySafeLatched = nil
 local function identityIsSafe()
     if _identitySafeLatched == nil then
@@ -615,9 +575,7 @@ local function identityIsSafe()
     end
     return _identitySafeLatched
 end
-
 local function atId2(fn, ...)
-    State.CapabilitySeam = "atId2"
     if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
     local done, ok, res = false, false, nil
     task.spawn(function()
@@ -631,9 +589,7 @@ local function atId2(fn, ...)
     if done then return ok, res end
     return pcall(fn, ...)
 end
-
 local function atId8(fn, ...)
-    State.CapabilitySeam = "atId8"
     if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
     local done, ok, res = false, false, nil
     task.spawn(function()
@@ -647,7 +603,6 @@ local function atId8(fn, ...)
     if done then return ok, res end
     return pcall(fn, ...)
 end
-
 local _identityIsSafeFn = (function()
     local latched, killed = nil, false
     local _seamShown = {}
@@ -660,7 +615,6 @@ local _identityIsSafeFn = (function()
             local seam = tostring(State.CapabilitySeam or "unlabelled")
             if _seamShown[seam] == nil then
                 _seamShown[seam] = true
-                print("[v11.0] CAPABILITY ERROR while: " .. seam .. "   (rage status: " .. tostring(State.RageStatus) .. ")")
             end
             if not killed then
                 killed = true
@@ -678,14 +632,13 @@ local _identityIsSafeFn = (function()
         return latched
     end
 end)()
-
 local ConstPatch = {}
 ;(function()
     local _getconstants = getconstants or (debugLib and debugLib.getconstants)
-    local _setconstant  = setconstant  or (debugLib and debugLib.setconstant)
-    local _getprotos    = getprotos    or (debugLib and debugLib.getprotos)
-    local _getproto     = getproto     or (debugLib and debugLib.getproto)
-    local HAVE_CONST  = type(_getconstants) == "function" and type(_setconstant) == "function"
+    local _setconstant = setconstant or (debugLib and debugLib.setconstant)
+    local _getprotos = getprotos or (debugLib and debugLib.getprotos)
+    local _getproto = getproto or (debugLib and debugLib.getproto)
+    local HAVE_CONST = type(_getconstants) == "function" and type(_setconstant) == "function"
     local HAVE_PROTOS = type(_getprotos) == "function" and type(_getproto) == "function"
     local _sets = {}
     local function ledger(create)
@@ -700,7 +653,9 @@ local ConstPatch = {}
     end
     local HASH_SEED = 5381
     local STR_CAP = 256
-    local function hashByte(h, b) return bit32.band(bit32.lshift(h, 5) + h + b, 0xFFFFFFFF) end
+    local function hashByte(h, b)
+        return bit32.band(bit32.lshift(h, 5) + h + b, 0xFFFFFFFF)
+    end
     local function hashString(h, s)
         local n = #s
         h = hashByte(h, bit32.band(n, 0xFF))
@@ -759,7 +714,7 @@ local ConstPatch = {}
         local ok, consts = pcall(_getconstants, fn)
         if not ok or type(consts) ~= "table" then return nil, "getconstants failed" end
         if src.index ~= nil then
-            if src.expect == nil then return nil, "index needs expect" end
+            if src.expect == nil then return nil, "index mode needs expect" end
             local cur = consts[src.index]
             if cur == nil then return nil, "no const at " .. tostring(src.index) end
             if cur ~= src.expect then return nil, "index holds " .. tostring(cur) end
@@ -772,13 +727,13 @@ local ConstPatch = {}
         return hits
     end
     local function validateSource(src)
-        if type(src) ~= "table" then return "not table" end
+        if type(src) ~= "table" then return "not a table" end
         if type(src.name) ~= "string" then return "needs name" end
         if type(src.fn) ~= "function" and type(src.holder) ~= "table" then return "needs fn or holder" end
-        if (src.target == nil) == (src.index == nil) then return "needs one of target/index" end
+        if (src.target == nil) == (src.index == nil) then return "needs exactly one of target/index" end
         if src.new == nil then return "needs new" end
         if src.scan ~= nil and src.scan ~= "self" and src.scan ~= "protos" then return "bad scan" end
-        if src.index ~= nil and src.scan == "protos" then return "index cannot combine" end
+        if src.index ~= nil and src.scan == "protos" then return "index cannot combine protos" end
         return nil
     end
     local Set = {}
@@ -789,8 +744,8 @@ local ConstPatch = {}
         return set
     end
     function Set:Apply()
-        if not HAVE_CONST then return false, "no getconstants" end
-        if self.restores then return false, "already applied" end
+        if not HAVE_CONST then return false, "no debug.getconstants" end
+        if self.restores then return false, self.name .. ": already applied" end
         local plan = {}
         for _, src in self.sources do
             local label = self.name .. "/" .. tostring(src.name or "?")
@@ -801,7 +756,7 @@ local ConstPatch = {}
             if src.fingerprint ~= nil then
                 local got = ConstPatch.fingerprint(fn)
                 if got ~= src.fingerprint then
-                    return false, string.format("%s: VERSION GATE %s != %s", label, tostring(got), tostring(src.fingerprint))
+                    return false, string.format("%s: VERSION GATE", label)
                 end
             end
             local cands, cerr = candidates(fn, src)
@@ -868,7 +823,6 @@ local ConstPatch = {}
     end
     function ConstPatch.available() return HAVE_CONST, HAVE_PROTOS end
 end)()
-
 local ViewAngle = {}
 ;(function()
     local _remote = nil
@@ -876,12 +830,12 @@ local ViewAngle = {}
     local _loopFn, _utilIdx, _utilOrig = nil, nil, nil
     local _suppressed = false
     local _joints, _jointsOrig = nil, nil
-
     local function remote()
-        if _remote == nil then pcall(function() _remote = UpdateCameraRotation end) end
+        if _remote == nil then
+            pcall(function() _remote = UpdateCameraRotation end)
+        end
         return _remote
     end
-
     local function resolveLoop()
         if _loopFn ~= nil then return true end
         if shared._LH_ViewLoopFn ~= nil and shared._LH_ViewUtilOrig ~= nil then
@@ -919,7 +873,6 @@ local ViewAngle = {}
         end)
         return _loopFn ~= nil
     end
-
     local function makeShim()
         local shim = {}
         shim.EncodeCameraRotation = function(_, rot)
@@ -936,7 +889,6 @@ local ViewAngle = {}
         end
         return setmetatable(shim, { __index = _utilOrig })
     end
-
     local function suppress(on)
         if on == _suppressed then return end
         if on then
@@ -954,7 +906,6 @@ local ViewAngle = {}
         _suppressed = false
         State.ViewAngleForged = false
     end
-
     local function patchJoints(on)
         if on then
             if _jointsOrig ~= nil then return end
@@ -992,7 +943,6 @@ local ViewAngle = {}
         end
         _jointsOrig = nil
     end
-
     function ViewAngle.forge(pitch, yaw)
         local r = remote()
         if r == nil or not Utility then return false end
@@ -1006,16 +956,13 @@ local ViewAngle = {}
         patchJoints(true)
         return true
     end
-
     function ViewAngle.restore()
         _forged = nil
         suppress(false)
         patchJoints(false)
     end
-
     ViewAngle.isForging = function() return _forged ~= nil end
 end)()
-
 local _sharedVelMap = {}
 do
     local _svPos, _svTime = {}, {}
@@ -1048,7 +995,6 @@ do
         end
     end)
 end
-
 local function calculateLead(targetChar, fromPos, wantLead)
     if wantLead == nil then wantLead = S.SilentEnabled or S.AimEnabled end
     if not targetChar then return Vector3.new() end
@@ -1077,7 +1023,6 @@ local function calculateLead(targetChar, fromPos, wantLead)
     if lead.Magnitude > cap then lead = lead.Unit * cap end
     return lead
 end
-
 local DEFLECT_ANIM_IDS = {
     ["14761240825"]=true,["14761220206"]=true,["14761234917"]=true,["14761221711"]=true,
     ["14761223422"]=true,["14761225204"]=true,["14761232380"]=true,["90436105114997"]=true,
@@ -1150,7 +1095,6 @@ end
         end
     end)
 end)()
-
 local _invincible, _invincEnt = {}, {}
 local function isSpawnProtected(player)
     if not player then return false end
@@ -1184,14 +1128,12 @@ local function isSpawnProtected(player)
     end
     return _invincible[uid] == true
 end
-
 local MELEE_NMS = {
     ["Battle Axe"]=true,["Chainsaw"]=true,["Daggers"]=true,["Fists"]=true,
     ["Gunblade"]=true,["Katana"]=true,["Knife"]=true,["Scythe"]=true,["Trowel"]=true,
 }
 local KATANA_NAMES = {"katana","saber","lightning bolt","evil trident","tridant","devil's trident","linked sword","keytana","cutlass","swordfish","riptide"}
 local KNIFE_NAMES = {"knife","karambit","balisong","chancla","machete","candy cane","armature","daggers","axe"}
-
 local function isKatana(player)
     local w = getWeaponName(player):lower()
     for _, n in ipairs(KATANA_NAMES) do
@@ -1246,7 +1188,6 @@ local function ownsRiotShield(player)
     end)
     return ok and res == true
 end
-
 local function inMatch()
     local envOk = false
     pcall(function()
@@ -1263,7 +1204,6 @@ local function inMatch()
     end
     return false
 end
-
 local function isValidTarget(player, checkVis, keepDeflect, rageScope)
     if not player or player == LP then return false end
     if S.TeamCheck and isTeammate(player) then return false end
@@ -1283,7 +1223,6 @@ local function isValidTarget(player, checkVis, keepDeflect, rageScope)
     if checkVis and sane and not isVisible(hrp.Position) then return false end
     return true
 end
-
 local function pickPart(char, mode)
     if not char then return nil end
     if mode == "Closest" then
@@ -1309,7 +1248,6 @@ local function pickPart(char, mode)
     end
     return char:FindFirstChild("HumanoidRootPart")
 end
-
 local function selectTarget(opts)
     opts = opts or {}
     local fov = opts.fov or 90
@@ -1339,7 +1277,6 @@ local function selectTarget(opts)
     end
     return best, bestPart
 end
-
 local Rage = {}
 ;(function()
     local _tgtConn = nil
@@ -1464,7 +1401,9 @@ local Rage = {}
         State.RageSwitchLast = now
         local lf = getLocalFighter()
         local equipped = false
-        if lf and lf.EquipItem then equipped = pcall(function() lf:EquipItem(idx) end) end
+        if lf and lf.EquipItem then
+            equipped = pcall(function() lf:EquipItem(idx) end)
+        end
         if not equipped then
             pcall(function()
                 local kc = ({ Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three })[idx]
@@ -1598,7 +1537,6 @@ local Rage = {}
         bump(LP)
     end
 end)()
-
 local PolarCore = {}
 ;(function()
     local _realCF, _realChar = nil, nil
@@ -1642,9 +1580,9 @@ local PolarCore = {}
         return set, get, name
     end
     local function writeFPDH(value)
-        if _fpdhDead then return false, "refused earlier" end
+        if _fpdhDead then return false, "refused" end
         if not identityIsSafe() then return false, "identity off" end
-        if not _fpdhIdTried then _fpdhIdTried = true; identEnsure() end
+        if not _fpdhIdTried then _fpdhIdTried = true identEnsure() end
         if _identSet == nil then return false, "no identity API" end
         local wrote = false
         task.spawn(function()
@@ -1653,8 +1591,12 @@ local PolarCore = {}
             if not pcall(_identSet, 8) then return end
             local sp = sethiddenproperty
             local wroteVia = false
-            if type(sp) == "function" then wroteVia = pcall(sp, W, "FallenPartsDestroyHeight", value) end
-            if not wroteVia then pcall(function() W.FallenPartsDestroyHeight = value end) end
+            if type(sp) == "function" then
+                wroteVia = pcall(sp, W, "FallenPartsDestroyHeight", value)
+            end
+            if not wroteVia then
+                pcall(function() W.FallenPartsDestroyHeight = value end)
+            end
             pcall(_identSet, prev)
             local okR, v = pcall(function() return W.FallenPartsDestroyHeight end)
             if okR then
@@ -1675,7 +1617,8 @@ local PolarCore = {}
             _fpdhOriginal = prev
         end
         local fpdhOk, fpdhHow
-        if on then fpdhOk, fpdhHow = writeFPDH(0/0)
+        if on then
+            fpdhOk, fpdhHow = writeFPDH(0/0)
         else
             local okBack, howBack = writeFPDH(_fpdhOriginal)
             fpdhHow = "restored=" .. tostring(okBack) .. " " .. tostring(howBack)
@@ -1690,12 +1633,10 @@ local PolarCore = {}
         local want = on and FFLAGS_ON or FFLAGS_OFF
         local threw = false
         local keyOk = false
-        local detail = ""
         for name, value in want do
             local wrote = pcall(set, name, value)
             if not wrote then threw = true end
             if name == "DFIntAssemblyHistorySkipSize" and wrote then keyOk = true end
-            detail = detail .. string.sub(name, 5) .. "=" .. (wrote and "ok" or "THREW") .. " "
         end
         _physSet = on and not threw
         _physLive = _physSet and keyOk and fpdhOk
@@ -1709,7 +1650,6 @@ local PolarCore = {}
         if m == "kicia" or m == "render" or m == "none" then return m end
         return "none"
     end
-    local _rvCF = nil
     local function voidAxis()
         local v = math.random(VOID_R_MIN, VOID_R_MAX)
         if math.random(0,1) == 0 then return -v end
@@ -1758,7 +1698,6 @@ local PolarCore = {}
         return cf
     end
     local function rawSetCFrame(hrp, cf)
-        State.CapabilitySeam = "polar park write"
         identEnsure()
         if _identSet ~= nil and identityIsSafe() then
             local wrote = false
@@ -1818,7 +1757,9 @@ local PolarCore = {}
             _useItem, _shootEnum = nil, nil
             State.CapabilityRecoveries = (State.CapabilityRecoveries or 0) + 1
         end
-        if _shootEnum == nil then pcall(function() _shootEnum = EnumLibrary:ToEnum("StartShooting") end) end
+        if _shootEnum == nil then
+            pcall(function() _shootEnum = EnumLibrary:ToEnum("StartShooting") end)
+        end
         if _shootEnum == nil then State.RageFireWhy = "no enum"; return 0 end
         if _useItem == nil then
             pcall(function() _useItem = Replication and Replication.Fighter and Replication.Fighter.UseItem end)
@@ -1851,13 +1792,16 @@ local PolarCore = {}
     end
     local function polarTick(ch, hrp)
         local tgt = _target
-        if tgt and (not tgt.Parent or not tgt.Character or not isAlive(tgt) or isTeammate(tgt)) then tgt = nil end
+        if tgt and (not tgt.Parent or not tgt.Character or not isAlive(tgt) or isTeammate(tgt)) then
+            tgt = nil
+        end
         if not tgt then tgt = Rage._findTarget() end
         _target = tgt
         State.RageTarget = tgt
         if not tgt or not tgt.Character then return hide(hrp, "No target") end
         local holdFire = isSpawnProtected(tgt) and S.RageSkipImmune
-        if not holdFire then _immuneSince, _immuneTgt = 0, nil
+        if not holdFire then
+            _immuneSince, _immuneTgt = 0, nil
         else
             local now = tick()
             if _immuneTgt ~= tgt then _immuneSince, _immuneTgt = now, tgt end
@@ -1870,7 +1814,9 @@ local PolarCore = {}
             local now = tick()
             if _deflectSince == 0 then _deflectSince = now end
             if now - _deflectSince < DEFLECT_MAX_HOLD then return hide(hrp, "Deflecting") end
-        else _deflectSince = 0 end
+        else
+            _deflectSince = 0
+        end
         local it = getEquippedItem()
         if not Rage._weaponReady(it) then
             local act = Rage._weaponRecovery(it)
@@ -1917,7 +1863,10 @@ local PolarCore = {}
         else
             State.RageFireFrames = (State.RageFireFrames or 0) + 1
         end
-        if _notified ~= tgt then _notified = tgt end
+        if _notified ~= tgt then
+            _notified = tgt
+            pcall(function() end)
+        end
     end
     local function restoreHome(pin)
         local ch = LP.Character
@@ -1925,9 +1874,13 @@ local PolarCore = {}
         if not hrp or not hrp.Parent then return end
         local back = _preParkCF
         _preParkCF = nil
-        pcall(function() if back then hrp.CFrame = back end end)
+        pcall(function()
+            if back then hrp.CFrame = back end
+        end)
     end
-    Players.PlayerRemoving:Connect(function(p) State.RageTrueVelocityMap[p] = nil end)
+    Players.PlayerRemoving:Connect(function(p)
+        State.RageTrueVelocityMap[p] = nil
+    end)
     function PolarCore.start()
         if _conn then return end
         _firing = false
@@ -2034,7 +1987,6 @@ local PolarCore = {}
         end
     end
 end)()
-
 local Aimbot = {}
 ;(function()
     local TAU = math.pi * 2
@@ -2113,7 +2065,7 @@ local Aimbot = {}
     end
     local function minJerk(s)
         s = math.clamp(s, 0, 1)
-        return s*s*s*(10 + s*(-15 + 6*s))
+        return s * s * s * (10 + s * (-15 + 6 * s))
     end
     local function bezier(p0, p1, p2, p3, t)
         local it = 1 - t
@@ -2558,7 +2510,6 @@ local silentLastFire = 0
 local silentFireCD = 0.01
 local raySilent = RaycastParams.new()
 raySilent.FilterType = Enum.RaycastFilterType.Blacklist
-
 local function silentFOVCenter()
     if S.SilentFollowMuzzle then
         local vm = W:FindFirstChild("ViewModels")
@@ -2580,7 +2531,6 @@ local function silentFOVCenter()
     end
     return screenCenter()
 end
-
 local function findSilentTarget()
     if S.Silent360 then
         local best, bestD = nil, math.huge
@@ -2598,7 +2548,7 @@ local function findSilentTarget()
         end
         return best
     end
-    local tgt = selectTarget({
+    local tgt, part = selectTarget({
         fov = S.SilentFOV,
         checkVis = S.SilentWallCheck,
         partMode = S.SilentHitPart,
@@ -2607,7 +2557,6 @@ local function findSilentTarget()
     })
     return tgt
 end
-
 local function fireSilentAt(target)
     if not UseItem or not Utility or not EnumLibrary then return false end
     if not target or not target.Character or not target.Character.Parent then return false end
@@ -2631,7 +2580,6 @@ local function fireSilentAt(target)
     State.Hits = State.Hits + 1
     return true
 end
-
 local function silentAutoFireLoop()
     if not S.SilentEnabled or not S.SilentAutoShoot then return end
     local now = tick()
@@ -2643,11 +2591,11 @@ local function silentAutoFireLoop()
     if not target then return end
     if fireSilentAt(target) then silentLastFire = now end
 end
-
 RunService.Heartbeat:Connect(function()
-    if S.SilentEnabled and S.SilentAutoShoot then pcall(silentAutoFireLoop) end
+    if S.SilentEnabled and S.SilentAutoShoot then
+        pcall(silentAutoFireLoop)
+    end
 end)
-
 UIS.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if not S.SilentEnabled or S.SilentAutoShoot then return end
@@ -2656,9 +2604,10 @@ UIS.InputBegan:Connect(function(input, gpe)
         if target then pcall(fireSilentAt, target) end
     end
 end)
-
 local antiAimState = { frameCounter = 0, smoothYaw = 0, smoothPitch = 0 }
-local function getRandomInRange(mn, mx) return mn + math.random() * (mx - mn) end
+local function getRandomInRange(mn, mx)
+    return mn + math.random() * (mx - mn)
+end
 local function calcAntiAimYaw()
     local yaw = 0
     local currentTime = tick()
@@ -2679,7 +2628,6 @@ local function calcAntiAimYaw()
     return yaw
 end
 local function calcAntiAimPitch()
-    
     local pitch = 0
     if S.AntiAimPitch == "jitter" then
         local minA = math.rad(S.AntiAimMinAngle)
@@ -2704,7 +2652,6 @@ local function calcAntiAimRoll()
     elseif S.AntiAimAngle == "custom" then roll = math.rad(S.AntiAimCustomAngle) end
     return roll
 end
-
 local antiAimConn = RunService.Heartbeat:Connect(function()
     if not S.AntiAimEnabled then return end
     local character = LP.Character
@@ -2719,7 +2666,6 @@ local antiAimConn = RunService.Heartbeat:Connect(function()
         root.CFrame = root.CFrame * CFrame.Angles(pitch, yaw, roll)
     end)
 end)
-
 local espGui = Instance.new("ScreenGui")
 espGui.Name = "v3HubESP_" .. tostring(math.random(1, 999999))
 espGui.ResetOnSpawn = false
@@ -2727,7 +2673,6 @@ espGui.IgnoreGuiInset = true
 espGui.DisplayOrder = 2147483646
 espGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 espGui.Parent = game:GetService("CoreGui")
-
 local espCache = {}
 local SKEL_BONES = {
     {"Head","UpperTorso"},{"UpperTorso","LowerTorso"},
@@ -2736,7 +2681,6 @@ local SKEL_BONES = {
     {"LowerTorso","LeftUpperLeg"},{"LeftUpperLeg","LeftLowerLeg"},{"LeftLowerLeg","LeftFoot"},
     {"LowerTorso","RightUpperLeg"},{"RightUpperLeg","RightLowerLeg"},{"RightLowerLeg","RightFoot"},
 }
-
 local function buildESP(key)
     if espCache[key] then return espCache[key] end
     local holder = Instance.new("Frame")
@@ -2744,8 +2688,6 @@ local function buildESP(key)
     holder.BackgroundTransparency = 1
     holder.Visible = false
     holder.Parent = espGui
-
-
     local nameLbl = Instance.new("TextLabel")
     nameLbl.BackgroundTransparency = 1
     nameLbl.TextColor3 = S.ESPNameColor
@@ -2757,7 +2699,6 @@ local function buildESP(key)
     nameLbl.Position = UDim2.new(0.5, -110, 0, -22)
     nameLbl.TextXAlignment = Enum.TextXAlignment.Center
     nameLbl.Parent = holder
-
     local distLbl = Instance.new("TextLabel")
     distLbl.BackgroundTransparency = 1
     distLbl.TextColor3 = S.ESPDistanceColor
@@ -2769,7 +2710,6 @@ local function buildESP(key)
     distLbl.Position = UDim2.new(0.5, -110, 1, 2)
     distLbl.TextXAlignment = Enum.TextXAlignment.Center
     distLbl.Parent = holder
-
     local box = Instance.new("Frame")
     box.BackgroundTransparency = 1
     box.BorderSizePixel = 0
@@ -2779,7 +2719,6 @@ local function buildESP(key)
     stroke.Color = S.ESPBoxColor
     stroke.Thickness = S.ESPBoxThickness
     stroke.Parent = box
-
     local corners = {}
     for i = 1, 4 do
         local c = Instance.new("Frame")
@@ -2794,7 +2733,6 @@ local function buildESP(key)
     corners[2].Position = UDim2.new(1, -10, 0, 0)
     corners[3].Position = UDim2.new(0, 0, 1, -2)
     corners[4].Position = UDim2.new(1, -10, 1, -2)
-
     local hbBg = Instance.new("Frame")
     hbBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
     hbBg.BorderSizePixel = 0
@@ -2806,14 +2744,12 @@ local function buildESP(key)
     hbBar.BorderSizePixel = 0
     hbBar.Size = UDim2.new(1, 0, 1, 0)
     hbBar.Parent = hbBg
-
     local tracer = Instance.new("Frame")
     tracer.BackgroundColor3 = S.ESPTracerColor
     tracer.BorderSizePixel = 0
     tracer.Visible = false
     tracer.ZIndex = 0
     tracer.Parent = espGui
-
     local skelLines = {}
     for i = 1, #SKEL_BONES do
         local line = Instance.new("Frame")
@@ -2824,7 +2760,6 @@ local function buildESP(key)
         line.Parent = espGui
         skelLines[i] = line
     end
-
     local d = {
         holder = holder, name = nameLbl, dist = distLbl, box = box, stroke = stroke,
         corners = corners, hbBg = hbBg, hbBar = hbBar, tracer = tracer, skel = skelLines,
@@ -2832,7 +2767,6 @@ local function buildESP(key)
     espCache[key] = d
     return d
 end
-
 local function clESP(key)
     local d = espCache[key]
     if not d then return end
@@ -2843,7 +2777,6 @@ local function clESP(key)
     end
     espCache[key] = nil
 end
-
 local function hdESP(d)
     if not d then return end
     d.holder.Visible = false
@@ -2852,7 +2785,6 @@ local function hdESP(d)
     d.hbBg.Visible = false
     for _, l in ipairs(d.skel) do l.Visible = false end
 end
-
 local function drawSkelLine(line, a, b, color)
     local ap, aon = worldToScreen(a)
     local bp, bon = worldToScreen(b)
@@ -2868,9 +2800,7 @@ local function drawSkelLine(line, a, b, color)
     line.Position = UDim2.fromOffset(math.floor(mid.X - len/2), math.floor(mid.Y))
     line.Rotation = math.deg(math.atan2(bv.Y - av.Y, bv.X - av.X))
 end
-
 local tGlobal = 0
-
 local function updateESP()
     if not S.ESPEnabled then
         for k, d in pairs(espCache) do hdESP(d) end
@@ -2907,22 +2837,18 @@ local function updateESP()
                                 local cx = (rpV.X + hpV.X) / 2
                                 local cy = (rpV.Y + hpV.Y) / 2
                                 local co = Color3.fromHSV((tGlobal * 0.25 + dist/2000*0.3) % 1, 1, 1)
-
                                 d.holder.Position = UDim2.fromOffset(math.floor(cx - wPx/2), math.floor(cy - hPx/2))
                                 d.holder.Size = UDim2.fromOffset(math.floor(wPx), math.floor(hPx))
                                 d.holder.Visible = true
-
                                 d.name.Visible = S.ESPShowName
                                 if S.ESPShowName then d.name.Text = p.Name end
                                 d.dist.Visible = S.ESPShowDistance
                                 if S.ESPShowDistance then d.dist.Text = string.format("[%d]", math.floor(dist)) end
-
                                 d.box.Visible = true
                                 d.box.Position = UDim2.fromOffset(math.floor(cx - wPx/2), math.floor(cy - hPx/2))
                                 d.box.Size = UDim2.fromOffset(math.floor(wPx), math.floor(hPx))
                                 d.stroke.Color = S.ESPBoxColor
                                 for _, c in ipairs(d.corners) do c.BackgroundColor3 = S.ESPBoxColor end
-
                                 if S.ESPShowHealth and hum.MaxHealth > 0 then
                                     local rt = math.clamp(hum.Health / hum.MaxHealth, 0, 1)
                                     d.hbBg.Visible = true
@@ -2934,7 +2860,6 @@ local function updateESP()
                                 else
                                     d.hbBg.Visible = false
                                 end
-
                                 if S.ESPShowTracer then
                                     local vp = C.ViewportSize
                                     local from = Vector2.new(vp.X/2, vp.Y)
@@ -2950,7 +2875,6 @@ local function updateESP()
                                 else
                                     d.tracer.Visible = false
                                 end
-
                                 if S.ESPShowSkeleton then
                                     for i, pair in ipairs(SKEL_BONES) do
                                         local a = char:FindFirstChild(pair[1])
@@ -2984,7 +2908,6 @@ local function updateESP()
         if not alive[k] then clESP(k) end
     end
 end
-
 local crosshairLines = {}
 for i = 1, 8 do crosshairLines[i] = Drawing.new("Line") end
 local crosshairAngles = {0, 90, 180, 270}
@@ -3039,7 +2962,6 @@ local function updateCrosshair(t)
         out.Thickness = 3
     end
 end
-
 local flyBP, flyBG = nil, nil
 local flyActive = false
 local function cleanupFly()
@@ -3103,7 +3025,6 @@ UIS.JumpRequest:Connect(function()
         end
     end
 end)
-
 if GunModule and GunModule.StartShooting then
     local origGunShoot = GunModule.StartShooting
     GunModule.StartShooting = function(self, p26, p27)
@@ -3186,8 +3107,9 @@ local function updateMuzzleFlash()
         if muzzleFlashConn then muzzleFlashConn:Disconnect(); muzzleFlashConn = nil end
     end
 end
-
-local DEVICE_CODES = { ["Mobile"]="Touch",["Console"]="Gamepad",["VR"]="VR",["PC"]="MouseKeyboard" }
+local DEVICE_CODES = {
+    ["Mobile"]="Touch",["Console"]="Gamepad",["VR"]="VR",["PC"]="MouseKeyboard",
+}
 local function applyDeviceSpoof()
     if not SetControls or not S.DeviceSpoof then return end
     local code = DEVICE_CODES[S.DeviceType] or "MouseKeyboard"
@@ -3197,7 +3119,6 @@ LP.CharacterAdded:Connect(function()
     task.wait(1)
     if S.DeviceSpoof then applyDeviceSpoof() end
 end)
-
 RunService.RenderStepped:Connect(function(dt)
     tGlobal = tGlobal + dt
     if not C then C = W.CurrentCamera end
@@ -3219,7 +3140,6 @@ RunService.RenderStepped:Connect(function(dt)
         end
     end
 end)
-
 task.spawn(function()
     while true do
         task.wait(30)
@@ -3233,7 +3153,6 @@ task.spawn(function()
         end
     end
 end)
-
 local autoQueueThread = nil
 local function autoQueueStop()
     if autoQueueThread then autoQueueThread = nil end
@@ -3271,22 +3190,19 @@ task.spawn(function()
         end
     end
 end)
-
 local ObsidianRepo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/"
 local ok = pcall(function()
     loadstring(game:HttpGet(ObsidianRepo .. "Library.lua"))()
 end)
-if not ok then warn("[v11.0] Obsidian 載入失敗") return end
+if not ok then return end
 local Library = getgenv().Library or getgenv().ObsidianLibrary
 if not Library then return end
-
 ThemeManager = loadstring(game:HttpGet(ObsidianRepo .. "addons/ThemeManager.lua"))()
 SaveManager = loadstring(game:HttpGet(ObsidianRepo .. "addons/SaveManager.lua"))()
 getgenv().ThemeManager = ThemeManager
 getgenv().SaveManager = SaveManager
 _G.ThemeManager = ThemeManager
 _G.SaveManager = SaveManager
-
 pcall(function()
     if ThemeManager then
         ThemeManager:SetLibrary(Library)
@@ -3303,13 +3219,11 @@ if SaveManager then
     end)
     pcall(function() SaveManager:SetFolder("v3hub/rivals") end)
 end
-
 local Window = Library:CreateWindow({
     Title = "v3 Hub // RIVALS v11.0",
     Footer = "Polar Rage + Aimbot Complete",
     Center = true, AutoShow = true, NotifySide = "Right", ShowCustomCursor = false
 })
-
 local CombatTab = Window:AddTab("Combat", "swords")
 local VisualsTab = Window:AddTab("Visuals", "eye")
 local MovementTab = Window:AddTab("Movement", "person-standing")
@@ -3317,19 +3231,29 @@ local GunTab = Window:AddTab("Gun", "crosshair")
 local MiscTab = Window:AddTab("Misc", "circle-ellipsis")
 local AutoTab = Window:AddTab("Auto", "zap")
 local ConfigTab = Window:AddTab("Configs", "save")
-
 local silentGroup = CombatTab:AddLeftGroupbox("Silent Aim")
-silentGroup:AddToggle("Silent_Enabled", { Text = "Enable Silent Aim", Default = false, Callback = function(v) S.SilentEnabled = v end }):AddKeyPicker("Silent_Key", { Text = "Silent Aim", Default = "None", Mode = "Toggle", NoUI = true, SyncToggleState = true, Callback = function(state) S.SilentEnabled = state end })
+silentGroup:AddToggle("Silent_Enabled", {
+    Text = "Enable Silent Aim", Default = false,
+    Callback = function(v) S.SilentEnabled = v end
+}):AddKeyPicker("Silent_Key", {
+    Text = "Silent Aim", Default = "None", Mode = "Toggle", NoUI = true,
+    SyncToggleState = true, Callback = function(state) S.SilentEnabled = state end
+})
 silentGroup:AddToggle("Silent_AutoShoot", { Text = "Auto Shoot", Default = false, Callback = function(v) S.SilentAutoShoot = v end })
 silentGroup:AddToggle("Silent_WallCheck", { Text = "Wall Check", Default = true, Callback = function(v) S.SilentWallCheck = v end })
 silentGroup:AddToggle("Silent_360", { Text = "360 Mode", Default = false, Callback = function(v) S.Silent360 = v end })
-silentGroup:AddDropdown("Silent_HitPart", { Text = "Hit Part", Default = "Head", Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"}, Callback = function(v) S.SilentHitPart = v end })
+silentGroup:AddDropdown("Silent_HitPart", {
+    Text = "Hit Part", Default = "Head",
+    Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"},
+    Callback = function(v) S.SilentHitPart = v end
+})
 silentGroup:AddSlider("Silent_FOV", { Text = "FOV Radius", Default = 150, Min = 10, Max = 800, Rounding = 0, Compact = true, Callback = function(v) S.SilentFOV = v end })
 silentGroup:AddSlider("Silent_HitChance", { Text = "Hit Chance %", Default = 100, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) S.SilentHitChance = v end })
 silentGroup:AddToggle("Silent_FollowMuzzle", { Text = "Follow Muzzle", Default = false, Callback = function(v) S.SilentFollowMuzzle = v end })
-
 local aimGroup = CombatTab:AddLeftGroupbox("Aimbot (Complete)")
-aimGroup:AddToggle("Aim_Enabled", { Text = "Enable Aimbot", Default = false, Callback = function(v) if v then Aimbot.enable() else Aimbot.disable() end end })
+aimGroup:AddToggle("Aim_Enabled", { Text = "Enable Aimbot", Default = false, Callback = function(v)
+    if v then Aimbot.enable() else Aimbot.disable() end
+end }):AddKeyPicker("Aim_Key", { Text = "Aimbot", Default = "MB2", Mode = "Toggle", NoUI = true, SyncToggleState = true, Callback = function(state) S.AimKey = state and "MB2" or "None" end })
 aimGroup:AddDropdown("Aim_KeyDropdown", { Text = "Activation", Default = "MB2", Values = {"Always","MB1","MB2","Q","E","F","C","V","X"}, Callback = function(v) S.AimKey = v end })
 aimGroup:AddSlider("Aim_Smoothness", { Text = "Smoothness (0 = hard lock)", Default = 0, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) S.AimSmoothness = v end })
 aimGroup:AddToggle("Aim_LinkAxes", { Text = "Link X/Y smoothing", Default = true, Callback = function(v) S.AimLinkAxes = v end })
@@ -3358,9 +3282,18 @@ aimGroup:AddSlider("Aim_Overshoot", { Text = "Overshoot", Default = 0, Min = 0, 
 aimGroup:AddToggle("Aim_ShowFOV", { Text = "Show FOV", Default = false, Callback = function(v) S.AimShowFOV = v end })
 aimGroup:AddToggle("Aim_ShowLock", { Text = "Show lock indicator", Default = false, Callback = function(v) S.AimShowLock = v end })
 aimGroup:AddToggle("Aim_DirectCamera", { Text = "Direct camera fallback", Default = false, Callback = function(v) S.AimDirectCamera = v end })
-
 local rageGroup = CombatTab:AddRightGroupbox("Rage (Polar)")
-rageGroup:AddToggle("Rage_Enabled", { Text = "Enable Rage", Default = false, Callback = function(v) if v then Rage.enable() else Rage.disable() end end }):AddKeyPicker("Rage_Key", { Text = "Rage", Default = "None", Mode = "Toggle", NoUI = true, SyncToggleState = true, Callback = function(state) if state then Rage.enable() else Rage.disable() end end })
+rageGroup:AddToggle("Rage_Enabled", {
+    Text = "Enable Rage", Default = false,
+    Callback = function(v)
+        if v then Rage.enable() else Rage.disable() end
+    end
+}):AddKeyPicker("Rage_Key", {
+    Text = "Rage", Default = "None", Mode = "Toggle", NoUI = true,
+    SyncToggleState = true, Callback = function(state)
+        if state then Rage.enable() else Rage.disable() end
+    end
+})
 rageGroup:AddSlider("Rage_Taps", { Text = "Taps per fire", Default = 6, Min = 1, Max = 8, Rounding = 0, Compact = true, Callback = function(v) S.RageTaps = v end })
 rageGroup:AddSlider("Rage_TapsPerFrame", { Text = "Taps per frame", Default = 1, Min = 1, Max = 6, Rounding = 0, Compact = true, Callback = function(v) S.RageTapsPerFrame = v end })
 rageGroup:AddDropdown("Rage_OnEmpty", { Text = "On empty", Default = "Swap", Values = {"Swap","Reload"}, Callback = function(v) S.RageOnEmpty = v end })
@@ -3391,7 +3324,6 @@ rageGroup:AddToggle("Rage_CameraAnchor", { Text = "Camera anchor", Default = tru
 rageGroup:AddToggle("Rage_PolarParity", { Text = "Polar parity", Default = true, Callback = function(v) S.RagePolarParity = v end })
 rageGroup:AddToggle("Rage_VoidPhase", { Text = "Void phase", Default = true, Callback = function(v) S.RageVoidPhase = v end })
 rageGroup:AddSlider("Rage_EyeMuzzleSep", { Text = "Eye muzzle sep", Default = 0.07, Min = 0, Max = 1, Rounding = 2, Compact = true, Callback = function(v) S.RageEyeMuzzleSep = v end })
-
 local antiGroup = CombatTab:AddRightGroupbox("Anti-Aim")
 antiGroup:AddToggle("AntiAim_Enabled", { Text = "Enable", Default = false, Callback = function(v) S.AntiAimEnabled = v end })
 antiGroup:AddDropdown("AntiAim_Yaw", { Text = "Yaw", Default = "jitter", Values = {"none","jitter","spinbot","random"}, Callback = function(v) S.AntiAimYaw = v end })
@@ -3403,7 +3335,6 @@ antiGroup:AddSlider("AntiAim_MaxSpeed", { Text = "Max Speed", Default = 20, Min 
 antiGroup:AddSlider("AntiAim_MinAngle", { Text = "Min Angle", Default = 30, Min = 1, Max = 180, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMinAngle = v end })
 antiGroup:AddSlider("AntiAim_MaxAngle", { Text = "Max Angle", Default = 60, Min = 1, Max = 180, Rounding = 1, Compact = true, Callback = function(v) S.AntiAimMaxAngle = v end })
 antiGroup:AddToggle("AntiAim_RandomAngle", { Text = "Random Angle", Default = false, Callback = function(v) S.AntiAimRandomAngle = v end })
-
 local espGroup = VisualsTab:AddLeftGroupbox("ESP")
 espGroup:AddToggle("ESP_Enabled", { Text = "Enable", Default = true, Callback = function(v) S.ESPEnabled = v end })
 espGroup:AddToggle("ESP_ShowName", { Text = "Name", Default = true, Callback = function(v) S.ESPShowName = v end })
@@ -3415,13 +3346,11 @@ espGroup:AddSlider("ESP_MaxDist", { Text = "Max Distance", Default = 1200, Min =
 espGroup:AddSlider("ESP_MaxPlayers", { Text = "Max Players", Default = 0, Min = 0, Max = 24, Rounding = 0, Compact = true, Callback = function(v) S.ESPMaxPlayers = v end })
 espGroup:AddToggle("ESP_TeamCheck", { Text = "Team Check", Default = true, Callback = function(v) S.ESPTeamCheck = v; S.TeamCheck = v end })
 espGroup:AddSlider("ESP_BoxScale", { Text = "Box Size", Default = 1, Min = 0.6, Max = 1.6, Rounding = 2, Compact = true, Callback = function(v) S.ESPBoxScale = v end })
-
 local crossGroup = VisualsTab:AddRightGroupbox("Crosshair")
 crossGroup:AddToggle("Crosshair_Enabled", { Text = "Enable", Default = false, Callback = function(v) S.CrosshairEnabled = v end }):AddColorPicker("Crosshair_Color", { Default = Color3.fromRGB(0, 200, 255), Title = "Color", Callback = function(v) S.CrosshairColor = v end })
 crossGroup:AddToggle("Crosshair_ShowLines", { Text = "Show Lines", Default = true, Callback = function(v) S.CrosshairShowLines = v end })
 crossGroup:AddSlider("Crosshair_Spin", { Text = "Spin Speed", Default = 150, Min = 0, Max = 340, Rounding = 0, Compact = true, Callback = function(v) S.CrosshairSpinSpeed = v end })
 crossGroup:AddDropdown("Crosshair_Mode", { Text = "Mode", Default = "static", Values = {"static","follow muzzle"}, Callback = function(v) S.CrosshairMode = v end })
-
 local moveGroup = MovementTab:AddLeftGroupbox("Movement")
 moveGroup:AddToggle("Move_InfJump", { Text = "Infinite Jump", Default = false, Callback = function(v) S.InfJump = v end })
 moveGroup:AddToggle("Move_Noclip", { Text = "Noclip", Default = false, Callback = function(v) S.Noclip = v end })
@@ -3429,7 +3358,6 @@ moveGroup:AddToggle("Move_Fly", { Text = "Fly", Default = false, Callback = func
 moveGroup:AddSlider("Move_WalkSpeed", { Text = "WalkSpeed", Default = 16, Min = 16, Max = 200, Rounding = 0, Compact = true, Callback = function(v) S.WalkSpeed = v end })
 moveGroup:AddSlider("Move_JumpPower", { Text = "JumpPower", Default = 50, Min = 50, Max = 300, Rounding = 0, Compact = true, Callback = function(v) S.JumpPower = v end })
 moveGroup:AddSlider("Move_FlySpeed", { Text = "Fly Speed", Default = 50, Min = 16, Max = 750, Rounding = 0, Compact = true, Callback = function(v) S.FlySpeed = v end })
-
 local gunGroup = GunTab:AddLeftGroupbox("Gun Mods")
 gunGroup:AddToggle("Gun_AntiKatana", { Text = "Anti Katana", Default = false, Callback = function(v) S.AntiKatana = v end })
 gunGroup:AddToggle("Gun_NoCooldown", { Text = "No Cooldown", Default = false, Callback = function(v) S.NoCooldown = v end })
@@ -3438,11 +3366,9 @@ gunGroup:AddToggle("Gun_NoRecoil", { Text = "No Recoil", Default = false, Callba
 gunGroup:AddToggle("Gun_MaxAccuracy", { Text = "Max Accuracy", Default = false, Callback = function(v) S.MaxAccuracy = v end })
 gunGroup:AddToggle("Gun_RapidAttack", { Text = "Rapid Attack", Default = false, Callback = function(v) S.RapidAttack = v end })
 gunGroup:AddToggle("Gun_NoMuzzleFlash", { Text = "No Muzzle Flash", Default = false, Callback = function(v) S.NoMuzzleFlash = v; updateMuzzleFlash() end })
-
 local deviceGroup = MiscTab:AddLeftGroupbox("Device Spoof")
 deviceGroup:AddToggle("Device_Spoof", { Text = "Enable", Default = false, Callback = function(v) S.DeviceSpoof = v; applyDeviceSpoof() end })
 deviceGroup:AddDropdown("Device_Type", { Text = "Type", Default = "PC", Values = {"PC","Console","Mobile","VR"}, Callback = function(v) S.DeviceType = v; if S.DeviceSpoof then applyDeviceSpoof() end end })
-
 local miscGroup = MiscTab:AddRightGroupbox("Misc")
 miscGroup:AddToggle("Misc_TeamCheck", { Text = "Team Check", Default = true, Callback = function(v) S.TeamCheck = v end })
 miscGroup:AddToggle("Misc_AntiAFK", { Text = "Anti AFK", Default = true, Callback = function(v) S.AntiAFK = v end })
@@ -3460,22 +3386,14 @@ miscGroup:AddButton({ Text = "卸載腳本", Func = function()
     pcall(ConstPatch.revertAll)
     Library:Unload()
 end })
-
 local autoQueueGroup = AutoTab:AddLeftGroupbox("Auto Queue")
 autoQueueGroup:AddToggle("AutoQueue_Enabled", { Text = "Enable", Default = false, Callback = function(v) S.AutoQueueEnabled = v end })
 autoQueueGroup:AddDropdown("AutoQueue_Mode", { Text = "Mode", Default = "1v1", Values = {"1v1","2v2","3v3","4v4","5v5"}, Callback = function(v) S.AutoQueueMode = v end })
 autoQueueGroup:AddToggle("AutoQueue_Ranked", { Text = "Ranked", Default = false, Callback = function(v) S.AutoQueueRanked = v end })
 autoQueueGroup:AddSlider("AutoQueue_Delay", { Text = "Delay s", Default = 2, Min = 0, Max = 30, Rounding = 1, Compact = true, Callback = function(v) S.AutoQueueDelay = v end })
-
 if SaveManager then
     pcall(function() SaveManager:BuildConfigSection(ConfigTab) end)
     pcall(function() SaveManager:LoadAutoloadConfig() end)
 end
-
-pcall(Visuals.init)
-pcall(Rage.init)
-pcall(Aimbot.init)
-pcall(Rage._startTransportWatcher)
-
 Library:Notify({ Title = "v3 Hub", Description = "v11.0 載入完成", Time = 4 })
 print("[v11.0] 完整載入完成")
