@@ -2262,7 +2262,7 @@ local Aimbot = {}
         local curYaw, curPit = yawOf(look), pitchOf(look)
         if _haveCam and not _calOff then
             _gx, _nx = calibrate(wrapPi(curYaw - _lyaw), _sx, _gx, _nx, _sdx)
-            _gy, _ny = calibrate(curPit - _lpit), _sy, _gy, _ny, _sdy)
+            _gy, _ny = calibrate(curPit - _lpit, _sy, _gy, _ny, _sdy)
         end
         _lyaw, _lpit, _haveCam = curYaw, curPit, true
         local fov = C.FieldOfView
