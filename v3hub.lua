@@ -1,6 +1,7 @@
--- ============================================================
--- LuaHook v12.0 — 完整版
--- 第一段：反封鎖 + 框架 + Gun Mods + 靜默自瞄 + 自瞄 + 觸發
+
+print("[v12.0] 完整版載入完成")-- ============================================================
+-- LuaHook v12.0 — 完整版（準心呼吸伸縮 + 彩虹 + Sky 系統 + Hold 快捷鍵）
+-- 第一段：反封鎖 + 框架 + Gun Mods + 靜默 + 自瞄 + 觸發 + ESP + Rage + AutoQueue
 -- ============================================================
 
 local hookmetamethod    = hookmetamethod
@@ -36,6 +37,7 @@ local CollectionService = game:GetService("CollectionService")
 local Lighting          = game:GetService("Lighting")
 local VirtualInputMgr   = game:GetService("VirtualInputManager")
 local SoundService      = game:GetService("SoundService")
+local TweenService      = game:GetService("TweenService")
 
 W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     C = W.CurrentCamera
@@ -455,49 +457,69 @@ Config = {
     SilentEnabled = false, SilentHitPart = "Head", SilentHitChance = 100, SilentFOV = 150,
     SilentAutoShoot = false, SilentWallCheck = true, Silent360 = false,
     SilentStickiness = 0.05, SilentBodyMix = 25, SilentJitterDeg = 1.5,
+
     Aimbot = false, AimbotVisCheck = true, AimbotKey = "MB2",
     AimbotSmoothness = 0, AimbotFOVDeg = 20,
     AimbotTargetPart = "Best", AimbotStickiness = 0.15, AimbotSwitchDeg = 2,
     AimbotForgetTime = 0.2, AimbotTrackAssist = 100,
+
     Trigger = false, TriggerKey = "Always", TriggerHeadOnly = false,
+
     TeamCheck = true, MaxDistance = math.huge,
+
     NoCooldown = false, NoSpread = false, NoRecoil = false,
     MaxAccuracy = false, RapidAttack = false, NoMuzzleFlash = false,
     AntiKatana = false,
+
     ESP = true, ESPTeamCheck = true, ESPMaxDistance = math.huge,
     ESPFont = "Code", ESPTextSize = 14, ESPInfoTextSize = 12,
     ESPBoxScale = 1, ESPBox = true, ESPBoxThickness = 1,
+    ESPBoxGlow = true, ESPRainbowBox = false,
     ESPName = true, ESPDistance = true, ESPHealth = true,
     ESPNameMode = "Display",
-    ESPBoxColor = Color3.fromRGB(255, 255, 255),
-    ESPNameColor = Color3.fromRGB(255, 255, 255),
-    ESPInfoColor = Color3.fromRGB(255, 255, 255),
+    ESPBoxColor = Color3.fromRGB(0, 229, 255),
+    ESPNameColor = Color3.fromRGB(243, 246, 250),
+    ESPInfoColor = Color3.fromRGB(174, 185, 197),
     ESPHealthColor = Color3.fromRGB(61, 224, 122),
-    Rage = false,
-    RageMode = "Polar",
-    RageGumMode = "on",
-    RageVoidDepth = "deep",
-    RageSkipImmune = true,
-    RageIdentityDance = true,
-    RageHPPriority = true,
-    RageKnifeBot = true,
-    RageOnEmpty = "Swap",
-    RagePreferredSlot = "Primary",
-    RageEyeMuzzleSep = 0.07,
-    RageKillPlaneBuffer = 200,
-    RageTaps = 6,
-    RageTapsPerFrame = 1,
-    RageHideJitter = true,
+
+    Rage = false, RageMode = "Polar",
+    RageGumMode = "on", RageVoidDepth = "deep",
+    RageSkipImmune = true, RageIdentityDance = true, RageHPPriority = true,
+    RageKnifeBot = true, RageOnEmpty = "Swap", RagePreferredSlot = "Primary",
+    RageEyeMuzzleSep = 0.07, RageKillPlaneBuffer = 200,
+    RageTaps = 6, RageTapsPerFrame = 1, RageHideJitter = true,
     RageRestoreMode = "auto",
-    RageCombatOrbitRadius = 60,
-    RageOrbitDwell = 0.30,
-    RageCombatOrbitHeight = 8,
-    RageCombatOrbitJitter = true,
+    RageCombatOrbitRadius = 60, RageOrbitDwell = 0.30,
+    RageCombatOrbitHeight = 8, RageCombatOrbitJitter = true,
     RagePBEyeUp = 3,
-    AutoQueueEnabled = false,
-    AutoQueueMode = "1v1",
-    AutoQueueDelay = 2,
-    AutoQueueRanked = false,
+
+    AutoQueueEnabled = false, AutoQueueMode = "1v1", AutoQueueDelay = 2, AutoQueueRanked = false,
+
+    -- 準心
+    FXCrosshair          = false,
+    FXCrosshairStyle     = "Cross",
+    FXCrosshairColor     = Color3.fromRGB(243, 246, 250),
+    FXCrosshairDot       = true,
+    FXCrosshairGap       = 4,
+    FXCrosshairLen       = 7,
+    FXCrosshairThickness = 2,
+    FXCrosshairOutline   = true,
+    FXCrosshairHitPop    = true,
+    FXCrosshairAngle     = 0,
+    FXCrosshairSpin      = true,
+    FXCrosshairSpinSpeed = 0.6,
+    FXCrosshairBounce    = true,
+    FXCrosshairBounceAmt = 6,
+    FXCrosshairBreathSpeed = 0.8,
+    FXCrosshairRainbow      = true,
+    FXCrosshairRainbowSpeed = 0.15,
+    FXCrosshairSniper    = false,
+
+    -- Sky
+    SkyboxPreset        = "Off",
+    SkyboxHideCelestial = false,
+
+    HUDWatermark = true,
 }
 
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
@@ -521,9 +543,62 @@ State = {
     OrbitAngle = 0,
     OrbitVantage = nil,
     OrbitVantageUntil = 0,
+    AutoQueueStatus = "-",
 }
 
--- ============ Gun Mods ============
+-- Hold Keybind
+local KeybindHold = {}
+do
+    local _bound = {}
+    local _connBegan, _connEnded = nil, nil
+
+    local function matchInput(b, input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and b.keys["MB1"] then return true end
+        if input.UserInputType == Enum.UserInputType.MouseButton2 and b.keys["MB2"] then return true end
+        if input.UserInputType == Enum.UserInputType.Keyboard and b.keys[input.KeyCode.Name] then return true end
+        return false
+    end
+
+    local function startLoop()
+        if _connBegan then return end
+        _connBegan = UIS.InputBegan:Connect(function(input, gpe)
+            if gpe then return end
+            for _, b in pairs(_bound) do
+                if not b.active and matchInput(b, input) then
+                    b.active = true
+                    pcall(b.onDown)
+                end
+            end
+        end)
+        _connEnded = UIS.InputEnded:Connect(function(input, gpe)
+            if gpe then return end
+            for _, b in pairs(_bound) do
+                if b.active and matchInput(b, input) then
+                    b.active = false
+                    pcall(b.onUp)
+                end
+            end
+        end)
+    end
+
+    function KeybindHold.bind(name, keys, onDown, onUp)
+        if type(keys) == "string" then keys = { keys } end
+        local set = {}
+        for _, k in ipairs(keys) do set[k] = true end
+        _bound[name] = { keys = set, onDown = onDown, onUp = onUp, active = false }
+        startLoop()
+    end
+
+    function KeybindHold.unbind(name) _bound[name] = nil end
+    function KeybindHold.unbindAll()
+        _bound = {}
+        if _connBegan then _connBegan:Disconnect(); _connBegan = nil end
+        if _connEnded then _connEnded:Disconnect(); _connEnded = nil end
+    end
+end
+getgenvFn().__LH_KeybindHold = KeybindHold
+
+-- Gun Mods
 do
     task.spawn(function()
         for _ = 1, 30 do
@@ -637,7 +712,7 @@ local function updateMuzzleFlash()
     end
 end
 
--- ============ 静默自瞄 ============
+-- 靜默
 local function isValidTargetSilent(player)
     if not player or player == LP then return false end
     if Config.TeamCheck and isTeammate(player) then return false end
@@ -691,8 +766,7 @@ local function findSilentTarget()
                 local part = getHitPartName(p.Character, Config.SilentHitPart)
                 if part then
                     local visibleOK = (not Config.SilentWallCheck) or isVisible(part.Position)
-                    if visibleOK then
-                        local d = (part.Position - myRoot.Position).Magnitude
+                    if visibleOK then                        local d = (part.Position - myRoot.Position).Magnitude
                         if d < bestD then best, bestD = p, d end
                     end
                 end
@@ -766,7 +840,7 @@ UIS.InputBegan:Connect(function(input, gpe)
     end
 end)
 
--- ============ 自瞄 ============
+-- 自瞄
 local Aimbot = {}
 ;(function()
     local TAU = math.pi * 2
@@ -1039,7 +1113,7 @@ local Aimbot = {}
     function Aimbot.unload() Aimbot.disable() end
 end)()
 
--- ============ 触发 ============
+-- 觸發
 local Trigger = {}
 do
     local _bound = false
@@ -1110,11 +1184,7 @@ do
     function Trigger.unload() Trigger.disable() end
 end
 
-print("[v12.0] 第一段载入完成")
--- ============================================================
--- 第二段：ESP + Rage + 自动排队 + GUI
--- ============================================================
-
+-- ESP
 local ESP = {}
 ;(function()
     local _renderConn = nil
@@ -1125,7 +1195,7 @@ local ESP = {}
     local _ctx = {}
     local BLACK = Color3.new(0, 0, 0)
     local WHITE = Color3.new(1, 1, 1)
-    local INK = Color3.fromRGB(4, 6, 10)
+    local NEON  = Color3.fromRGB(0, 229, 255)
     local HPBG = Color3.fromRGB(11, 15, 22)
     local HP_W = 3
     local HP_GAP = 5
@@ -1194,9 +1264,7 @@ local ESP = {}
         t.ZIndex = z or 3
         t.TextColor3 = WHITE
         local st = Instance.new("UIStroke")
-        st.Color = BLACK
-        st.Thickness = 1
-        st.Transparency = 0
+        st.Color = BLACK; st.Thickness = 1; st.Transparency = 0
         st.Parent = t
         t.Parent = parent
         return t
@@ -1208,15 +1276,18 @@ local ESP = {}
         f.Size = UDim2.fromScale(1, 1)
         local s = Instance.new("UIStroke")
         s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        s.Color = colour
-        s.Thickness = thick
-        s.Transparency = 0
+        s.Color = colour; s.Thickness = thick; s.Transparency = 0
         s.Parent = f
         return f, s
     end
+    local function mkCorner(parent, radius)
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0, radius or 0)
+        c.Parent = parent
+        return c
+    end
     local function buildTree(o)
-        local g = espGui()
-        if not g then return nil end
+        local g = espGui(); if not g then return nil end
         local u = {}
         local root = mkFrame(g, 2)
         root.Visible = false
@@ -1224,9 +1295,23 @@ local ESP = {}
         u.root = root
         u.box = mkFrame(root, 3)
         u.box.Size = UDim2.fromScale(1, 1)
-        local rMid, sMid = mkRing(u.box, 5, WHITE, 1)
+        local rMid, sMid = mkRing(u.box, 5, Config.ESPBoxColor or NEON, 1)
         u.boxStroke = sMid
+        mkCorner(u.box, 2)
         u.box.Visible = false
+        local glow = mkFrame(root, 2)
+        glow.Size = UDim2.fromScale(1, 1)
+        glow.AnchorPoint = Vector2.new(0.5, 0.5)
+        glow.Position = UDim2.fromScale(0.5, 0.5)
+        local gs = Instance.new("UIStroke")
+        gs.Color = Config.ESPBoxColor or NEON
+        gs.Thickness = 3
+        gs.Transparency = 0.85
+        gs.Parent = glow
+        mkCorner(glow, 3)
+        u.glow = glow
+        u.glowStroke = gs
+        glow.Visible = false
         local hp = mkFrame(root, 4)
         hp.AnchorPoint = Vector2.new(1, 0)
         hp.Position = UDim2.new(0, -HP_GAP, 0, 0)
@@ -1234,6 +1319,7 @@ local ESP = {}
         hp.BackgroundTransparency = 0
         hp.BackgroundColor3 = HPBG
         hp.Visible = false
+        mkCorner(hp, 2)
         u.hp = hp
         u.hpFill = mkFrame(hp, 6)
         u.hpFill.BackgroundTransparency = 0
@@ -1241,6 +1327,7 @@ local ESP = {}
         u.hpFill.AnchorPoint = Vector2.new(0, 1)
         u.hpFill.Position = UDim2.fromScale(0, 1)
         u.hpFill.Size = UDim2.fromScale(1, 1)
+        mkCorner(u.hpFill, 2)
         u.name = mkLabel(root, 7)
         u.name.AnchorPoint = Vector2.new(0.5, 1)
         u.name.Position = UDim2.new(0.5, 0, 0, -PAD)
@@ -1252,8 +1339,7 @@ local ESP = {}
         return u
     end
     local function cleanESP(p)
-        local o = State.ESPObjects[p]
-        if not o then return end
+        local o = State.ESPObjects[p]; if not o then return end
         if o.ui and o.ui.root then pcall(function() o.ui.root:Destroy() end) end
         _bboxCache[p] = nil
         _bboxFrameN[p] = nil
@@ -1262,10 +1348,8 @@ local ESP = {}
     local function buildESP(player)
         if player == LP then return end
         cleanESP(player)
-        local char = player.Character
-        if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return end
+        local char = player.Character; if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart"); if not root then return end
         local o = { root = root }
         o.ui = buildTree(o)
         State.ESPObjects[player] = o
@@ -1325,12 +1409,24 @@ local ESP = {}
             local hp, mh, frac
             pcall(function() hp, mh = getHealth(player) end)
             if hp ~= nil then frac = math.clamp((mh or 0) > 0 and hp / mh or 0, 0, 1) end
+            local pulse = 0.85 + 0.15 * math.sin(tick() * 3 + (player.UserId % 100))
+            local hueShift = (tick() * 0.08 + (player.UserId % 360) / 360) % 1
+            local dynamicColor = Color3.fromHSV(hueShift, 0.85, 1)
+            local boxColor = Config.ESPBoxColor or NEON
+            if Config.ESPRainbowBox then boxColor = dynamicColor end
             if Config.ESPBox then
                 u.box.Visible = true
-                u.boxStroke.Color = Config.ESPBoxColor
+                u.boxStroke.Color = boxColor
                 u.boxStroke.Thickness = Config.ESPBoxThickness
+                u.glow.Visible = Config.ESPBoxGlow == true
+                if u.glowStroke then
+                    u.glowStroke.Color = boxColor
+                    u.glowStroke.Transparency = 0.75 + 0.15 * pulse
+                    u.glowStroke.Thickness = 3
+                end
             else
                 u.box.Visible = false
+                u.glow.Visible = false
             end
             if Config.ESPHealth then
                 u.hp.Visible = true
@@ -1402,15 +1498,13 @@ local ESP = {}
         for _, p in ipairs(getSafePlayers()) do
             if p ~= LP then
                 p.CharacterAdded:Connect(function()
-                    task.wait(0.5)
-                    if Config.ESP then buildESP(p) end
+                    task.wait(0.5); if Config.ESP then buildESP(p) end
                 end)
             end
         end
         Players.PlayerAdded:Connect(function(p)
             p.CharacterAdded:Connect(function()
-                task.wait(0.5)
-                if Config.ESP then buildESP(p) end
+                task.wait(0.5); if Config.ESP then buildESP(p) end
             end)
         end)
         Players.PlayerRemoving:Connect(function(p) cleanESP(p) end)
@@ -1424,7 +1518,7 @@ end)()
 pcall(ESP.init)
 if Config.ESP then pcall(ESP.enable) end
 
--- ============ Rage ============
+-- Rage
 local Rage = {}
 ;(function()
     local function hasLOS(fromPos, toPos, ignore)
@@ -1726,8 +1820,7 @@ local Rage = {}
         local kf = killFloor()
         local dist = 3.0
         local ignore = { tgt.Character, LP.Character }
-        local rp = RaycastParams.new()
-        rp.FilterType = Enum.RaycastFilterType.Exclude
+        local rp = RaycastParams.new(); rp.FilterType = Enum.RaycastFilterType.Exclude
         rp.FilterDescendantsInstances = ignore
         local flank = anchor + inv * dist
         local wr = W:Raycast(anchor, inv * dist, rp)
@@ -1768,9 +1861,7 @@ local Rage = {}
                     State.OrbitVantage = v
                     State.OrbitVantageUntil = tick() + (Config.RageOrbitDwell or 0.09)
                     held = v
-                else
-                    held = nil
-                end
+                else held = nil end
             end
             if held then vantage = held; status = "Orbit" end
         end
@@ -1824,8 +1915,7 @@ local Rage = {}
             local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
             if not hrp or not hrp.Parent then return end
             if not inMatch() then
-                _target = nil
-                _firing = false
+                _target = nil; _firing = false
                 State.RageFiring = false
                 State.RageTarget = nil
                 State.RageStatus = "Lobby"
@@ -1859,8 +1949,7 @@ local Rage = {}
         pcall(function() RunService:UnbindFromRenderStep(RENDER_NAME) end)
         _firing = false
         restoreHome()
-        _target = nil
-        _voidCF = nil
+        _target = nil; _voidCF = nil
         State.RageFiring = false
         State.RageVoidActive = false
         State.RageTarget = nil
@@ -1875,7 +1964,7 @@ local Rage = {}
     Rage._buildShotFields = SharedEncode.buildShotFields
 end)()
 
--- ============ 自动排队 ============
+-- AutoQueue
 local autoQueueThread = nil
 local function autoQueueStop()
     if autoQueueThread then autoQueueThread = nil end
@@ -1914,7 +2003,12 @@ task.spawn(function()
     end
 end)
 
--- ============ GUI ============
+print("[v12.0] 第一段載入完成")
+-- ============================================================
+-- 第二段：Sky 系統 + GUI + 自訂準心（呼吸伸縮 + 四線同色彩虹）
+-- 順序：Linoria → SkySystem 宣告 → GUI → CrosshairRenderer
+-- ============================================================
+
 local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
 local Library, ThemeManager, SaveManager
 local ok, err = pcall(function()
@@ -1935,20 +2029,20 @@ local ok, err = pcall(function()
     local src = files[1]
     local patched, n = src:gsub('if not FetchIcons then', 'if not Icons then')
     if n > 0 then src = patched end
-    Library = loadstring(src)()
+    Library      = loadstring(src)()
     ThemeManager = loadstring(files[2])()
-    SaveManager = loadstring(files[3])()
+    SaveManager  = loadstring(files[3])()
 end)
 if not ok or not Library then warn("[LuaHook] Linoria load failed:", err); return end
 
 Library.IsMobile = isMobile
 Library.ShowCustomCursor = false
 pcall(function()
-    Library.MainColor = Color3.fromRGB(26, 27, 31)
-    Library.BackgroundColor = Color3.fromRGB(17, 18, 21)
-    Library.AccentColor = Color3.fromRGB(96, 165, 250)
-    Library.OutlineColor = Color3.fromRGB(43, 45, 52)
-    Library.FontColor = Color3.fromRGB(239, 241, 245)
+    Library.MainColor        = Color3.fromRGB(16, 18, 24)
+    Library.BackgroundColor  = Color3.fromRGB(10, 12, 16)
+    Library.AccentColor      = Color3.fromRGB(0, 229, 255)
+    Library.OutlineColor     = Color3.fromRGB(35, 40, 50)
+    Library.FontColor        = Color3.fromRGB(236, 240, 246)
 end)
 
 local okWin, Window = pcall(function()
@@ -1957,7 +2051,7 @@ local okWin, Window = pcall(function()
         Center = true,
         AutoShow = false,
         TabPadding = 8,
-        MenuFadeTime = 0.2,
+        MenuFadeTime = 0.25,
         NotifySide = 'Right',
         Resizable = true,
         UnlockMouseWhileOpen = true,
@@ -1965,12 +2059,227 @@ local okWin, Window = pcall(function()
 end)
 if not okWin or not Window then warn("[LuaHook] GUI window failed:", Window); return end
 
+-- ============================================================
+-- Sky 系統（三層防護：事件 + 屬性 + 快速輪詢）
+-- ============================================================
+local SkySystem = {}
+;(function()
+    local Lighting    = game:GetService("Lighting")
+    local RunService  = game:GetService("RunService")
+    local Players     = game:GetService("Players")
+    local LP          = Players.LocalPlayer
+    local W           = game:GetService("Workspace")
+
+    local SKY = {
+        Space     = { Bk="rbxassetid://159454299",  Dn="rbxassetid://159454296",  Ft="rbxassetid://159454293",  Lf="rbxassetid://159454286",  Rt="rbxassetid://159454300",  Up="rbxassetid://159454288" },
+        Sunset    = { Bk="rbxassetid://264908339",  Dn="rbxassetid://264907909",  Ft="rbxassetid://264909420",  Lf="rbxassetid://264909758",  Rt="rbxassetid://264908886",  Up="rbxassetid://264907379" },
+        Clouds    = { Bk="rbxassetid://570557514",  Dn="rbxassetid://570557775",  Ft="rbxassetid://570557559",  Lf="rbxassetid://570557620",  Rt="rbxassetid://570557672",  Up="rbxassetid://570557727" },
+        Storm     = { Bk="rbxassetid://255027929",  Dn="rbxassetid://255027967",  Ft="rbxassetid://255027923",  Lf="rbxassetid://255027938",  Rt="rbxassetid://255027946",  Up="rbxassetid://255027960" },
+        Winter    = { Bk="rbxassetid://402229526",  Dn="rbxassetid://402229596",  Ft="rbxassetid://402229293",  Lf="rbxassetid://402229368",  Rt="rbxassetid://402229417",  Up="rbxassetid://402229564" },
+        Vaporwave = { Bk="rbxassetid://1417494030", Dn="rbxassetid://1417494146", Ft="rbxassetid://1417494253", Lf="rbxassetid://1417494402", Rt="rbxassetid://1417494499", Up="rbxassetid://1417494643" },
+    }
+    SkySystem.SkyboxOrder = { "Off", "Space", "Sunset", "Clouds", "Storm", "Winter", "Vaporwave" }
+
+    local _sky = nil
+    local _skyConn = nil          -- Lighting.ChildAdded 守衛
+    local _repopConn = nil        -- 快速輪詢
+    local _lastRepopT = 0
+    local _lastPlace = game.PlaceId
+    local _origSkies = {}
+
+    local function hideMapSkies()
+        for _, c in ipairs(Lighting:GetChildren()) do
+            if c:IsA("Sky") and not c:GetAttribute("WX_Custom") then
+                table.insert(_origSkies, c)
+                pcall(function() c.Parent = nil end)
+            end
+        end
+    end
+
+    local function restoreMapSkies()
+        for i = #_origSkies, 1, -1 do
+            local c = _origSkies[i]
+            if c and c.Parent == nil then
+                pcall(function() c.Parent = Lighting end)
+            end
+            _origSkies[i] = nil
+        end
+    end
+
+    local function buildSky(preset)
+        local set = SKY[preset]
+        if not set then return end
+        hideMapSkies()
+        local s = Instance.new("Sky")
+        s.Name = "_wxSky"
+        s:SetAttribute("WX_Custom", true)
+        s.SkyboxBk = set.Bk
+        s.SkyboxDn = set.Dn
+        s.SkyboxFt = set.Ft
+        s.SkyboxLf = set.Lf
+        s.SkyboxRt = set.Rt
+        s.SkyboxUp = set.Up
+        if Config.SkyboxHideCelestial then
+            s.SunAngularSize     = 0
+            s.MoonAngularSize    = 0
+            s.StarCount          = 0
+            s.CelestialBodiesShown = false
+        else
+            s.CelestialBodiesShown = true
+        end
+        s.Parent = Lighting
+        _sky = s
+    end
+
+    -- 檢查 Sky 是否還在，不見就重建
+    local function repopSky()
+        if not Config.SkyboxPreset or Config.SkyboxPreset == "Off" then return end
+        -- 檢查是否還在
+        if _sky and _sky.Parent == Lighting then
+            -- 順便檢查有沒有別的 Sky 搶進來
+            local hasForeign = false
+            for _, c in ipairs(Lighting:GetChildren()) do
+                if c:IsA("Sky") and not c:GetAttribute("WX_Custom") then
+                    hasForeign = true
+                    break
+                end
+            end
+            if not hasForeign then return end
+        end
+        -- 重建
+        _sky = nil
+        local preset = Config.SkyboxPreset
+        hideMapSkies()
+        buildSky(preset)
+    end
+
+    local function startSkyGuard()
+        if _skyConn then return end
+        _skyConn = Lighting.ChildAdded:Connect(function(c)
+            if c:IsA("Sky") and not c:GetAttribute("WX_Custom")
+               and Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
+                table.insert(_origSkies, c)
+                pcall(function() c.Parent = nil end)
+                -- 立刻重建我們的
+                task.defer(repopSky)
+            end
+        end)
+        -- 監聽 Sky 被移除
+        Lighting.ChildRemoved:Connect(function(c)
+            if c:IsA("Sky") and c:GetAttribute("WX_Custom") then
+                _sky = nil
+                task.defer(repopSky)
+            end
+        end)
+    end
+
+    local function stopSkyGuard()
+        if _skyConn then _skyConn:Disconnect(); _skyConn = nil end
+    end
+
+    -- 快速輪詢 0.1 秒
+    local function startRepop()
+        if _repopConn then return end
+        _repopConn = RunService.Heartbeat:Connect(function()
+            if not Config.SkyboxPreset or Config.SkyboxPreset == "Off" then return end
+            local now = tick()
+            if now - _lastRepopT < 0.1 then return end
+            _lastRepopT = now
+            -- 換 place 偵測
+            if game.PlaceId ~= _lastPlace then
+                _lastPlace = game.PlaceId
+                _sky = nil
+                _origSkies = {}
+            end
+            repopSky()
+        end)
+    end
+
+    local function stopRepop()
+        if _repopConn then _repopConn:Disconnect(); _repopConn = nil end
+    end
+
+    local function clearSky()
+        if _sky then pcall(function() _sky:Destroy() end); _sky = nil end
+        restoreMapSkies()
+    end
+
+    function SkySystem.setSkybox(preset)
+        if preset and not SKY[preset] then preset = "Off" end
+        Config.SkyboxPreset = preset
+        clearSky()
+        if preset == "Off" or preset == nil then
+            stopSkyGuard()
+            stopRepop()
+            return
+        end
+        buildSky(preset)
+        startSkyGuard()
+        startRepop()
+    end
+
+    function SkySystem.toggleCelestial(hide)
+        Config.SkyboxHideCelestial = hide
+        if _sky then
+            if hide then
+                _sky.SunAngularSize     = 0
+                _sky.MoonAngularSize    = 0
+                _sky.StarCount          = 0
+                _sky.CelestialBodiesShown = false
+            else
+                _sky.SunAngularSize     = 11
+                _sky.MoonAngularSize    = 11
+                _sky.StarCount          = 3000
+                _sky.CelestialBodiesShown = true
+            end
+        end
+    end
+
+    -- 角色重生監聽（換圖時角色會被重建）
+    LP.CharacterAdded:Connect(function()
+        if Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
+            task.wait(0.3)
+            _sky = nil
+            repopSky()
+            task.wait(1)
+            repopSky()
+        end
+    end)
+
+    -- Workspace 屬性變動（有些圖會換 Workspace 屬性觸發重建）
+    W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        if Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
+            task.defer(repopSky)
+        end
+    end)
+
+    function SkySystem.init()
+        if Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
+            pcall(SkySystem.setSkybox, Config.SkyboxPreset)
+        end
+    end
+
+    function SkySystem.unload()
+        clearSky()
+        stopSkyGuard()
+        stopRepop()
+        Config.SkyboxPreset = "Off"
+    end
+
+    getgenvFn().__LH_SkySystem = SkySystem
+end)()
+
+-- ============================================================
+-- GUI
+-- ============================================================
 local Tabs = {
     Combat = Window:AddTab('戰鬥'),
-    ESP = Window:AddTab('透視'),
-    Rage = Window:AddTab('狂暴'),
-    Gun = Window:AddTab('槍械'),
-    Auto = Window:AddTab('自動'),
+    ESP    = Window:AddTab('透視'),
+    Rage   = Window:AddTab('狂暴'),
+    Gun    = Window:AddTab('槍械'),
+    HUD    = Window:AddTab('準心'),
+    World  = Window:AddTab('世界'),
+    Auto   = Window:AddTab('自動'),
     Settings = Window:AddTab('設定'),
 }
 local Options = Library.Options or {}
@@ -1978,42 +2287,79 @@ local Toggles = Library.Toggles or {}
 Library.Options = Options
 Library.Toggles = Toggles
 
--- 战斗分页
+local function bindModeToggle(pickerName, configKey, onSet)
+    local modeOpt = Options[pickerName .. "_Mode"]
+    local keyOpt  = Options[pickerName]
+    if not keyOpt then return end
+    local function apply()
+        local keys = keyOpt.Value
+        if type(keys) == "table" then keys = keys[1] end
+        local mode = modeOpt and modeOpt.Value or "Toggle"
+        local H = getgenvFn().__LH_KeybindHold
+        if not H then return end
+        H.unbind(pickerName)
+        if keys and keys ~= "None" and keys ~= "" then
+            if mode == "Hold" then
+                H.bind(pickerName, keys,
+                    function() onSet(true) end,
+                    function() onSet(false) end)
+            else
+                H.bind(pickerName, keys,
+                    function() onSet(not (Config[configKey] == true)) end,
+                    function() end)
+            end
+        end
+    end
+    if keyOpt.OnChanged then keyOpt:OnChanged(apply) end
+    if modeOpt and modeOpt.OnChanged then modeOpt:OnChanged(apply) end
+    task.defer(apply)
+end
+
+-- 戰鬥
 do
     local L = Tabs.Combat:AddLeftGroupbox('靜默自瞄')
     L:AddToggle('Silent_Enabled', { Text = '啟用靜默自瞄', Default = false, Callback = function(v) Config.SilentEnabled = v end })
-        :AddKeyPicker('Silent_Key', { Text = '靜默自瞄', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true, Callback = function(state) Config.SilentEnabled = state end })
+        :AddKeyPicker('Silent_Key', { Text = '靜默自瞄', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true })
+    L:AddDropdown('Silent_Key_Mode', { Values = {'Toggle','Hold'}, Default = 'Toggle', Text = '快捷鍵模式', Callback = function() end })
     L:AddToggle('Silent_AutoShoot', { Text = '自動開槍', Default = false, Callback = function(v) Config.SilentAutoShoot = v end })
     L:AddToggle('Silent_WallCheck', { Text = '牆壁檢測', Default = true, Callback = function(v) Config.SilentWallCheck = v end })
     L:AddToggle('Silent_360', { Text = '360 度模式', Default = false, Callback = function(v) Config.Silent360 = v end })
     L:AddDropdown('Silent_HitPart', { Text = '命中部位', Default = 'Head', Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"}, Callback = function(v) Config.SilentHitPart = v end })
     L:AddSlider('Silent_FOV', { Text = '視野半徑', Default = 150, Min = 10, Max = 800, Rounding = 0, Compact = true, Callback = function(v) Config.SilentFOV = v end })
     L:AddSlider('Silent_HitChance', { Text = '命中率 %', Default = 100, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) Config.SilentHitChance = v end })
+    bindModeToggle('Silent_Key', 'SilentEnabled', function(v) Config.SilentEnabled = v end)
 
     local R = Tabs.Combat:AddRightGroupbox('自瞄')
     R:AddToggle('Aimbot', { Text = '啟用自瞄', Default = false, Callback = function(v) if v then Aimbot.enable() else Aimbot.disable() end end })
-        :AddKeyPicker('AimbotKey_Picker', { Text = '自瞄', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true, Callback = function(state) if state then Aimbot.enable() else Aimbot.disable() end end })
+        :AddKeyPicker('AimbotKey_Picker', { Text = '自瞄', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true })
+    R:AddDropdown('AimbotKey_Picker_Mode', { Values = {'Toggle','Hold'}, Default = 'Toggle', Text = '快捷鍵模式', Callback = function() end })
     R:AddDropdown('AimbotKey', { Values = {'Always','MB2','MB1','C','E','F','Q','V','X','LeftShift','LeftAlt','LeftControl'}, Default = 'MB2', Text = '啟動方式', Callback = function(v) Config.AimbotKey = v end })
     R:AddSlider('AimbotSmoothness', { Text = '平滑度 (0=硬鎖)', Default = 0, Min = 0, Max = 100, Rounding = 0, Callback = function(v) Config.AimbotSmoothness = v end })
     R:AddSlider('AimbotFOVDeg', { Text = '視野 度', Default = 20, Min = 1, Max = 180, Rounding = 1, Callback = function(v) Config.AimbotFOVDeg = v end })
     R:AddDropdown('AimbotTargetPart', { Values = {'Best','Head','Torso','Closest'}, Default = 'Best', Text = '目標骨骼', Callback = function(v) Config.AimbotTargetPart = v end })
     R:AddToggle('AimbotVisCheck', { Text = '可見性檢測', Default = true, Callback = function(v) Config.AimbotVisCheck = v end })
+    bindModeToggle('AimbotKey_Picker', 'Aimbot', function(v) if v then Aimbot.enable() else Aimbot.disable() end end)
 
     local TB = Tabs.Combat:AddRightGroupbox('觸發機器人')
     TB:AddToggle('Trigger', { Text = '啟用觸發', Default = false, Callback = function(v) if v then Trigger.enable() else Trigger.disable() end end })
+        :AddKeyPicker('Trigger_Key', { Text = '觸發', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true })
+    TB:AddDropdown('Trigger_Key_Mode', { Values = {'Toggle','Hold'}, Default = 'Toggle', Text = '快捷鍵模式', Callback = function() end })
     TB:AddDropdown('TriggerKey', { Values = {'Always','MB2','MB1','C','E','F','Q','V','X','LeftShift','LeftAlt','LeftControl'}, Default = 'Always', Text = '啟動方式', Callback = function(v) Config.TriggerKey = v end })
     TB:AddToggle('TriggerHeadOnly', { Text = '只打頭', Default = false, Callback = function(v) Config.TriggerHeadOnly = v end })
+    bindModeToggle('Trigger_Key', 'Trigger', function(v) if v then Trigger.enable() else Trigger.disable() end end)
 
     local T = Tabs.Combat:AddLeftGroupbox('目標選擇')
     T:AddToggle('TeamCheck', { Text = '隊伍檢測', Default = true, Callback = function(v) Config.TeamCheck = v end })
 end
 
--- 透视分页
+-- 透視
 do
     local L = Tabs.ESP:AddLeftGroupbox('透視 & 方框')
     L:AddToggle('ESP', { Text = '啟用透視', Default = true, Callback = function(v) if v then ESP.enable() else ESP.disable() end end })
     L:AddToggle('ESPTeamCheck', { Text = '隊伍檢測', Default = true, Callback = function(v) Config.ESPTeamCheck = v end })
     L:AddToggle('ESPBox', { Text = '方框', Default = true, Callback = function(v) Config.ESPBox = v end })
+    L:AddToggle('ESPBoxGlow', { Text = '霓虹光暈', Default = true, Callback = function(v) Config.ESPBoxGlow = v end })
+    L:AddToggle('ESPRainbowBox', { Text = '彩虹方框', Default = false, Callback = function(v) Config.ESPRainbowBox = v end })
     L:AddSlider('ESPBoxThickness', { Text = '方框粗細', Default = 1, Min = 1, Max = 4, Rounding = 0, Callback = function(v) Config.ESPBoxThickness = math.floor(v) end })
     L:AddSlider('ESPBoxScale', { Text = '方框大小', Default = 1, Min = 0.6, Max = 1.6, Rounding = 2, Callback = function(v) Config.ESPBoxScale = v end })
     L:AddToggle('ESPHealth', { Text = '血條', Default = true, Callback = function(v) Config.ESPHealth = v end })
@@ -2026,17 +2372,19 @@ do
     R:AddLabel('方框顏色'):AddColorPicker('ESPBoxColor', { Default = Config.ESPBoxColor, Callback = function(v) Config.ESPBoxColor = v end })
 end
 
--- 狂暴分页
+-- 狂暴
 do
     local RageTab = Tabs.Rage
     local CORE = RageTab:AddLeftGroupbox('核心')
     CORE:AddToggle('Rage_Enabled', { Text = '啟用狂暴', Default = false, Callback = function(v) if v then Rage.enable() else Rage.disable() end end })
-        :AddKeyPicker('Rage_Key', { Text = '狂暴', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true, Callback = function(state) if state then Rage.enable() else Rage.disable() end end })
+        :AddKeyPicker('Rage_Key', { Text = '狂暴', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true })
+    CORE:AddDropdown('Rage_Key_Mode', { Values = {'Toggle','Hold'}, Default = 'Toggle', Text = '快捷鍵模式', Callback = function() end })
     CORE:AddDropdown('RageMode', { Values = {'Polar','Orbit'}, Default = 'Polar', Text = '狂暴模式', Callback = function(v) Config.RageMode = v; if Config.Rage then Rage.enable() end end })
     CORE:AddToggle('Rage_HPPriority', { Text = '優先低血量目標', Default = true, Callback = function(v) Config.RageHPPriority = v end })
     CORE:AddDivider('引擎')
     CORE:AddDropdown('Rage_VoidDepth', { Values = {'shallow','deep'}, Default = 'deep', Text = '躲藏深度', Callback = function(v) Config.RageVoidDepth = v end })
     CORE:AddDropdown('Rage_RestoreMode', { Values = {'auto','none','render','kerp'}, Default = 'auto', Text = '傳送模式', Callback = function(v) Config.RageRestoreMode = v end })
+    bindModeToggle('Rage_Key', 'Rage', function(v) if v then Rage.enable() else Rage.disable() end end)
 
     local ORBIT = RageTab:AddLeftGroupbox('繞圈專屬')
     ORBIT:AddSlider('RageCombatOrbitRadius', { Text = '繞圈半徑', Default = 60, Min = 20, Max = 380, Rounding = 0, Callback = function(v) Config.RageCombatOrbitRadius = v end })
@@ -2056,7 +2404,7 @@ do
     MELEE:AddToggle('Rage_KnifeBot', { Text = '小刀機器人', Default = true, Callback = function(v) Config.RageKnifeBot = v end })
 end
 
--- 枪械分页
+-- 槍械
 do
     local G = Tabs.Gun:AddLeftGroupbox('槍械修改')
     G:AddToggle('Gun_NoCooldown', { Text = '無冷卻', Default = false, Callback = function(v) Config.NoCooldown = v end })
@@ -2067,7 +2415,103 @@ do
     G:AddToggle('Gun_NoMuzzleFlash', { Text = '無槍口火光', Default = false, Callback = function(v) Config.NoMuzzleFlash = v; updateMuzzleFlash() end })
 end
 
--- 自动分页
+-- 準心
+do
+    local L = Tabs.HUD:AddLeftGroupbox('自訂準心')
+    L:AddToggle('FXCrosshair', { Text = '啟用自訂準心', Default = Config.FXCrosshair,
+        Callback = function(v) Config.FXCrosshair = v end })
+    local D = L:AddDependencyBox()
+    D:AddDropdown('FXCrosshairStyle', {
+        Values = {'Cross','X','T','Dot','Chevron'},
+        Default = Config.FXCrosshairStyle,
+        Text = '樣式',
+        Callback = function(v) Config.FXCrosshairStyle = v end })
+    D:AddLabel('顏色'):AddColorPicker('FXCrosshairColor', {
+        Default = Config.FXCrosshairColor,
+        Callback = function(v) Config.FXCrosshairColor = v end })
+    D:AddToggle('FXCrosshairDot', {
+        Text = '中心點', Default = Config.FXCrosshairDot,
+        Callback = function(v) Config.FXCrosshairDot = v end })
+    D:AddToggle('FXCrosshairOutline', {
+        Text = '黑色外框', Default = Config.FXCrosshairOutline,
+        Callback = function(v) Config.FXCrosshairOutline = v end })
+    D:AddSlider('FXCrosshairGap', {
+        Text = '內距', Default = Config.FXCrosshairGap,
+        Min = 0, Max = 20, Rounding = 0,
+        Callback = function(v) Config.FXCrosshairGap = math.floor(v) end })
+    D:AddSlider('FXCrosshairLen', {
+        Text = '每段長度', Default = Config.FXCrosshairLen,
+        Min = 2, Max = 24, Rounding = 0,
+        Callback = function(v) Config.FXCrosshairLen = math.floor(v) end })
+    D:AddSlider('FXCrosshairThickness', {
+        Text = '粗細', Default = Config.FXCrosshairThickness,
+        Min = 1, Max = 4, Rounding = 0,
+        Callback = function(v) Config.FXCrosshairThickness = math.floor(v) end })
+
+    D:AddDivider('旋轉')
+    D:AddToggle('FXCrosshairSpin', {
+        Text = '持續旋轉', Default = Config.FXCrosshairSpin,
+        Callback = function(v) Config.FXCrosshairSpin = v end })
+    D:AddSlider('FXCrosshairSpinSpeed', {
+        Text = '旋轉速度', Default = Config.FXCrosshairSpinSpeed,
+        Min = 0.1, Max = 4, Rounding = 1,
+        Callback = function(v) Config.FXCrosshairSpinSpeed = v end })
+
+    D:AddDivider('自動呼吸伸縮（無需開火）')
+    D:AddToggle('FXCrosshairBounce', {
+        Text = '啟用呼吸伸縮', Default = Config.FXCrosshairBounce,
+        Callback = function(v) Config.FXCrosshairBounce = v end })
+    D:AddSlider('FXCrosshairBounceAmt', {
+        Text = '伸縮幅度', Default = Config.FXCrosshairBounceAmt,
+        Min = 1, Max = 20, Rounding = 0,
+        Callback = function(v) Config.FXCrosshairBounceAmt = math.floor(v) end })
+    D:AddSlider('FXCrosshairBreathSpeed', {
+        Text = '呼吸速度（次/秒）', Default = Config.FXCrosshairBreathSpeed,
+        Min = 0.1, Max = 4, Rounding = 1,
+        Callback = function(v) Config.FXCrosshairBreathSpeed = v end })
+
+    D:AddDivider('彩色（四條線一起變色）')
+    D:AddToggle('FXCrosshairRainbow', {
+        Text = '彩色（彩虹）', Default = Config.FXCrosshairRainbow,
+        Callback = function(v) Config.FXCrosshairRainbow = v end })
+    D:AddSlider('FXCrosshairRainbowSpeed', {
+        Text = '彩色流動速度', Default = Config.FXCrosshairRainbowSpeed,
+        Min = 0.02, Max = 1, Rounding = 2,
+        Callback = function(v) Config.FXCrosshairRainbowSpeed = v end })
+
+    D:AddDivider('命中加長')
+    D:AddToggle('FXCrosshairHitPop', {
+        Text = '命中加長', Default = Config.FXCrosshairHitPop,
+        Callback = function(v) Config.FXCrosshairHitPop = v end })
+
+    D:AddDivider('狙擊鏡')
+    D:AddToggle('FXCrosshairSniper', {
+        Text = '開鏡時才顯示', Default = Config.FXCrosshairSniper,
+        Callback = function(v) Config.FXCrosshairSniper = v end })
+
+    D:SetupDependencies({ { Toggles.FXCrosshair, true } })
+end
+
+-- 世界（Sky）
+do
+    local L = Tabs.World:AddLeftGroupbox('天空盒')
+    L:AddDropdown('WX_Sky', {
+        Values = SkySystem.SkyboxOrder,
+        Default = Config.SkyboxPreset or 'Off',
+        Text = '天空盒預設',
+        Callback = function(v) SkySystem.setSkybox(v) end })
+    L:AddToggle('WX_HideCelestial', {
+        Text = '隱藏天體（日/月/星）', Default = Config.SkyboxHideCelestial,
+        Callback = function(v) SkySystem.toggleCelestial(v) end })
+    L:AddButton({
+        Text = '還原遊戲天空盒',
+        Func = function()
+            SkySystem.setSkybox('Off')
+            if Options.WX_Sky then pcall(function() Options.WX_Sky:SetValue('Off') end) end
+        end })
+end
+
+-- 自動
 do
     local L = Tabs.Auto:AddLeftGroupbox('自動排隊')
     L:AddToggle('AutoQueue_Enabled', { Text = '自動 1v1', Default = false, Callback = function(v) Config.AutoQueueEnabled = v end })
@@ -2076,7 +2520,7 @@ do
     L:AddSlider('AutoQueue_Delay', { Text = '延遲 秒', Default = 2, Min = 0, Max = 30, Rounding = 1, Compact = true, Callback = function(v) Config.AutoQueueDelay = v end })
 end
 
--- 设定分页
+-- 設定
 do
     local L = Tabs.Settings:AddLeftGroupbox('選單')
     L:AddDropdown('GUIToggleKey', {
@@ -2087,6 +2531,21 @@ do
         pcall(function()
             if getgenvFn().__LH_restoreAllHooks then
                 getgenvFn().__LH_restoreAllHooks()
+            end
+        end)
+        pcall(function()
+            if getgenvFn().__LH_KeybindHold then
+                getgenvFn().__LH_KeybindHold.unbindAll()
+            end
+        end)
+        pcall(function()
+            if getgenvFn().__LH_CrosshairRenderer then
+                getgenvFn().__LH_CrosshairRenderer.destroy()
+            end
+        end)
+        pcall(function()
+            if getgenvFn().__LH_SkySystem then
+                getgenvFn().__LH_SkySystem.unload()
             end
         end)
         pcall(function() ESP.unload() end)
@@ -2133,8 +2592,313 @@ task.spawn(function()
     end)
 end)
 
+-- ============================================================
+-- 自訂準心繪製層（呼吸伸縮 + 四條線同色彩虹）
+-- ============================================================
+local CrosshairRenderer = {}
+;(function()
+    local CoreGui      = game:GetService("CoreGui")
+    local RunService   = game:GetService("RunService")
+    local Players      = game:GetService("Players")
+    local LP           = Players.LocalPlayer
+    local Camera       = workspace.CurrentCamera
+
+    workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
+        Camera = workspace.CurrentCamera
+    end)
+
+    local BLACK = Color3.new(0, 0, 0)
+    local WHITE = Color3.new(1, 1, 1)
+
+    local _gui = nil
+    local _lines, _linesBlk  = {}, {}
+    local _chDot, _chDotBlk  = nil, nil
+    local _conn = nil
+    local _started = false
+
+    local _fx = {
+        breathT = 0,
+        rotBase = 0,
+        hue     = 0,
+        lastHits = 0,
+        popT = -10,
+    }
+
+    local DIAG    = { Vector2.new(1, 1), Vector2.new(-1, 1), Vector2.new(1, -1), Vector2.new(-1, -1) }
+    local PLUS    = { Vector2.new(0, -1), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(-1, 0) }
+    local INV_SQ2 = 0.70710678
+
+    local function ensureGui()
+        if _gui and _gui.Parent then return _gui end
+        local g = Instance.new("ScreenGui")
+        g.Name = "_lh_xhair_" .. tostring(math.random(1e5, 1e6))
+        g.IgnoreGuiInset = true
+        g.ResetOnSpawn   = false
+        g.DisplayOrder   = 99997
+        g.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+        local ok = pcall(function() g.Parent = (gethui and gethui()) or CoreGui end)
+        if not ok or not g.Parent then
+            pcall(function() g.Parent = LP:FindFirstChildOfClass("PlayerGui") end)
+        end
+        _gui = g
+        return g
+    end
+
+    local function mkLine(parent, color, z)
+        local f = Instance.new("Frame")
+        f.BackgroundColor3 = color
+        f.BorderSizePixel  = 0
+        f.AnchorPoint      = Vector2.new(0.5, 0.5)
+        f.Visible          = false
+        f.ZIndex           = z or 5
+        f.Parent           = parent
+        return f
+    end
+
+    local function mkDot(parent, color, z)
+        local f = Instance.new("Frame")
+        f.BackgroundColor3 = color
+        f.BorderSizePixel  = 0
+        f.AnchorPoint      = Vector2.new(0.5, 0.5)
+        f.Visible          = false
+        f.ZIndex           = z or 5
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(1, 0)
+        c.Parent = f
+        f.Parent = parent
+        return f
+    end
+
+    local function allocate()
+        if _lines[1] then return end
+        local g = ensureGui()
+        for i = 1, 4 do _linesBlk[i] = mkLine(g, BLACK, 4) end
+        for i = 1, 4 do _lines[i]    = mkLine(g, WHITE, 5) end
+        _chDotBlk = mkDot(g, BLACK, 5)
+        _chDot    = mkDot(g, WHITE, 6)
+    end
+
+    local function hideAll()
+        if _lines then
+            for i = 1, #_lines do
+                if _lines[i] then _lines[i].Visible = false end
+                if _linesBlk[i] then _linesBlk[i].Visible = false end
+            end
+        end
+        if _chDot then _chDot.Visible = false end
+        if _chDotBlk then _chDotBlk.Visible = false end
+    end
+
+    local function isScoped()
+        local lf = nil
+        pcall(function()
+            if Rivals and Rivals.Fighter then lf = Rivals.Fighter.LocalFighter end
+        end)
+        if not lf or not lf.EquippedItem then return false end
+        local it = lf.EquippedItem
+        local cur, pct = nil, nil
+        pcall(function() cur = it.ViewModel and it.ViewModel.CurrentAimValue end)
+        pcall(function() pct = it.Info and it.Info.AimScopePercent end)
+        if type(cur) == "number" then
+            if type(pct) == "number" then return cur >= pct end
+            return cur >= 1
+        end
+        local aiming = nil
+        pcall(function() aiming = it:Get("IsAiming") end)
+        if aiming == nil then return true end
+        return aiming == true
+    end
+
+    local function applyLine(f, fromX, fromY, toX, toY, color, thickness)
+        if not f then return end
+        local dx, dy = toX - fromX, toY - fromY
+        local len = math.sqrt(dx * dx + dy * dy)
+        if len < 0.5 then f.Visible = false; return end
+        f.Position               = UDim2.fromOffset(
+            math.floor((fromX + toX) * 0.5),
+            math.floor((fromY + toY) * 0.5))
+        f.Size                   = UDim2.fromOffset(math.floor(len + 0.5), thickness)
+        f.Rotation               = math.deg(math.atan2(dy, dx))
+        f.BackgroundColor3       = color
+        f.BackgroundTransparency = 0
+        f.Visible                = true
+    end
+
+    local function update(dt)
+        if not Config.FXCrosshair and not Config.FXCrosshairSniper then
+            hideAll()
+            return
+        end
+
+        local crossOn  = Config.FXCrosshair == true
+        local sniperOn = Config.FXCrosshairSniper == true
+        if not crossOn and not (sniperOn and isScoped()) then
+            hideAll()
+            return
+        end
+
+        allocate()
+
+        local vp = Camera and Camera.ViewportSize or Vector2.new(1920, 1080)
+        local cx, cy = vp.X * 0.5, vp.Y * 0.5
+
+        local style = Config.FXCrosshairStyle or "Cross"
+        local gap   = Config.FXCrosshairGap or 4
+        local len   = Config.FXCrosshairLen or 7
+        local th    = Config.FXCrosshairThickness or 2
+        local col   = Config.FXCrosshairColor or WHITE
+        local outl  = Config.FXCrosshairOutline ~= false
+
+        -- 持續旋轉
+        if Config.FXCrosshairSpin then
+            _fx.rotBase = (_fx.rotBase + (Config.FXCrosshairSpinSpeed or 1.0) * 360 * dt) % 360
+        else
+            if _fx.rotBase ~= 0 then
+                _fx.rotBase = _fx.rotBase + (0 - _fx.rotBase) * math.min(dt * 8, 1)
+                if math.abs(_fx.rotBase) < 0.5 then _fx.rotBase = 0 end
+            end
+        end
+
+        -- 自動呼吸伸縮
+        local breathAmt = 0
+        if Config.FXCrosshairBounce then
+            local speed = Config.FXCrosshairBreathSpeed or 0.8
+            local range = Config.FXCrosshairBounceAmt or 6
+            _fx.breathT = _fx.breathT + dt * speed
+            local s = (math.sin(_fx.breathT * math.pi * 2) + 1) * 0.5
+            breathAmt = s * range
+        end
+        local gapEff = gap + breathAmt
+
+        -- 彩虹：整組同一個色相
+        local useRainbow = Config.FXCrosshairRainbow
+        if useRainbow then
+            _fx.hue = (_fx.hue + dt * (Config.FXCrosshairRainbowSpeed or 0.15)) % 1
+        end
+        local sharedCol = col
+        if useRainbow then
+            sharedCol = Color3.fromHSV(_fx.hue, 1, 1)
+        end
+
+        -- 命中加長
+        if Config.FXCrosshairHitPop ~= false then
+            local h = State and State.Hits or 0
+            if h ~= _fx.lastHits then
+                _fx.lastHits = h
+                _fx.popT = tick()
+            end
+            len = len + 2 * (1 - math.clamp((tick() - _fx.popT) / 0.06, 0, 1))
+        end
+
+        local rotDeg = ((Config.FXCrosshairAngle or 0) + _fx.rotBase) % 360
+        local rotRad = math.rad(rotDeg)
+        local cosR, sinR = math.cos(rotRad), math.sin(rotRad)
+
+        local isX       = style == "X"
+        local isT       = style == "T"
+        local isDotOnly = style == "Dot"
+        local isChevron = style == "Chevron"
+
+        for i = 1, 4 do
+            local l  = _lines[i]
+            local lb = _linesBlk[i]
+
+            local hide = isDotOnly
+                or (isT and i == 1)
+                or (isChevron and i > 2)
+
+            if hide then
+                if l  then l.Visible  = false end
+                if lb then lb.Visible = false end
+            else
+                local nx, ny
+                if isChevron then
+                    local sx = (i == 1) and -1 or 1
+                    nx, ny = sx * 0.707, 0.707
+                elseif isX then
+                    nx, ny = DIAG[i].X * INV_SQ2, DIAG[i].Y * INV_SQ2
+                else
+                    nx, ny = PLUS[i].X, PLUS[i].Y
+                end
+                local rnx = nx * cosR - ny * sinR
+                local rny = nx * sinR + ny * cosR
+                local fromX = cx + rnx * gapEff
+                local fromY = cy + rny * gapEff
+                local toX   = cx + rnx * (gapEff + len)
+                local toY   = cy + rny * (gapEff + len)
+
+                if outl and lb then
+                    applyLine(lb, fromX - 1, fromY - 1, toX - 1, toY - 1, BLACK, th + 2)
+                else
+                    if lb then lb.Visible = false end
+                end
+                applyLine(l, fromX, fromY, toX, toY, sharedCol, th)
+            end
+        end
+
+        local showDot = isDotOnly or (Config.FXCrosshairDot ~= false)
+        if showDot then
+            local r = isDotOnly and (th + 1) or math.max(th * 0.5 + 0.5, 1)
+            if _chDotBlk then
+                if outl then
+                    local rr = math.ceil(r + 1)
+                    _chDotBlk.Position = UDim2.fromOffset(math.floor(cx - rr), math.floor(cy - rr))
+                    _chDotBlk.Size     = UDim2.fromOffset(rr * 2, rr * 2)
+                    _chDotBlk.BackgroundColor3 = BLACK
+                    _chDotBlk.Visible  = true
+                else
+                    _chDotBlk.Visible = false
+                end
+            end
+            if _chDot then
+                local rr = math.ceil(r)
+                _chDot.Position = UDim2.fromOffset(math.floor(cx - rr), math.floor(cy - rr))
+                _chDot.Size     = UDim2.fromOffset(rr * 2, rr * 2)
+                _chDot.BackgroundColor3 = sharedCol
+                _chDot.Visible  = true
+            end
+        else
+            if _chDot then _chDot.Visible = false end
+            if _chDotBlk then _chDotBlk.Visible = false end
+        end
+    end
+
+    function CrosshairRenderer.start()
+        if _started then return end
+        _started = true
+        allocate()
+        if not _conn then
+            _conn = RunService.RenderStepped:Connect(function(dt)
+                if not _started then return end
+                pcall(update, dt)
+            end)
+        end
+    end
+
+    function CrosshairRenderer.stop()
+        if not _started then return end
+        _started = false
+        if _conn then _conn:Disconnect(); _conn = nil end
+        hideAll()
+    end
+
+    function CrosshairRenderer.destroy()
+        CrosshairRenderer.stop()
+        if _gui then pcall(function() _gui:Destroy() end); _gui = nil end
+        _lines, _linesBlk = {}, {}
+        _chDot, _chDotBlk = nil, nil
+    end
+
+    function CrosshairRenderer.init()
+        pcall(CrosshairRenderer.start)
+    end
+
+    getgenvFn().__LH_CrosshairRenderer = CrosshairRenderer
+end)()
+
+pcall(CrosshairRenderer.init)
+pcall(SkySystem.init)
 pcall(Rage.init)
 
-Library:Notify('v12.0 完整版載入完成', 4)
+Library:Notify('v12.0 完整版載入完成（準心 + Sky）', 4)
 _G["\76\72"] = Library
-print("[v12.0] 完整版載入完成")
