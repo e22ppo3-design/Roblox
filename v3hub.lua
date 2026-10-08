@@ -1,9 +1,9 @@
 -- ============================================================
--- LuaHook v12.0 — 模組 1
--- 反封鎖 + Linoria 框架 + 靜默自瞄（完整）
+-- LuaHook v12.0 — 模組 1 完整修正版
+-- 反封鎖 + Linoria 框架 + 靜默自瞄（完整 + 自動射擊 + 無限距離 + 優先最近）
 -- ============================================================
 
--- ============ 反封鎖（v11.0 完整保留）============
+-- ============ 反封鎖 ============
 local hookmetamethod    = hookmetamethod
 local getrawmetatable   = getrawmetatable
 local setreadonly       = setreadonly
@@ -42,7 +42,7 @@ W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     C = W.CurrentCamera
 end)
 
--- 反封鎖第 1 層：setmetatable hook
+-- 反封鎖第 1 層：setmetatable
 do
     if getgenvFn and hookfunction and newcclosure and getrenv then
         getgenvFn().__LH_SetmtBP = game
@@ -68,7 +68,7 @@ do
     end
 end
 
--- 反封鎖第 2 層：__namecall hook
+-- 反封鎖第 2 層：__namecall
 if hookmetamethod and getrawmetatable and setreadonly then
     local mt = getrawmetatable(game)
     pcall(function() setreadonly(mt, false) end)
@@ -121,7 +121,7 @@ LP.CharacterAdded:Connect(function()
     nukeConnections()
 end)
 
--- 反封鎖第 5 層：__index hook
+-- 反封鎖第 5 層：__index
 if hookmetamethod then
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
@@ -385,7 +385,7 @@ local function pickPart(char, mode)
     return char:FindFirstChild("HumanoidRootPart")
 end
 
--- 共享編碼工具（靜默自瞄 + 自瞄 + 狂暴共用）
+-- 共享編碼工具
 local SharedEncode = {}
 do
     local function lookCF(fromPos, toPos)
@@ -462,7 +462,7 @@ do
     end
 end
 
--- ============ 靜默自瞄（Linoria 完整）============
+-- ============ 靜默自瞄（完整版）============
 local Config = {
     SilentAim = false,
     SilentAimVisCheck = false,
@@ -476,7 +476,11 @@ local Config = {
     SilentAimHitChance = 85,
     SilentAimBodyMix = 25,
     SilentAimJitterDeg = 1.5,
-    MaxDistance = 1200,
+    SilentAimAutoShoot = false,
+    SilentAimWallCheck = true,
+    SilentAim360 = false,
+    SilentAimFollowMuzzle = false,
+    MaxDistance = math.huge,
     TeamCheck = true,
 }
 
@@ -494,9 +498,6 @@ local function isValidTarget(player, checkVis)
     local char = player.Character
     local hrp  = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
-    local myChar = LP.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if myRoot and (hrp.Position - myRoot.Position).Magnitude > Config.MaxDistance then return false end
     if checkVis and not isVisible(hrp.Position) then return false end
     return true
 end
@@ -523,6 +524,51 @@ local function selectTarget(opts)
                         local score = d
                         if player == sticky then score = score * (1 - stickyBonus) end
                         if score < bestScore then bestScore, best, bestPart = score, player, part end
+                    end
+                end
+            end
+        end
+    end
+    return best, bestPart
+end
+
+local function selectTarget360(mode, checkVis)
+    local myChar = LP.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+    local best, bestPart, bestDist = nil, nil, math.huge
+    for _, player in ipairs(getSafePlayers()) do
+        if player ~= LP and isValidTarget(player, false) then
+            local char = player.Character
+            local part = pickPart(char, mode)
+            if part then
+                local isVis = (not checkVis) or isVisible(part.Position)
+                if isVis then
+                    local d = (part.Position - myRoot.Position).Magnitude
+                    if d < bestDist then bestDist, best, bestPart = d, player, part end
+                end
+            end
+        end
+    end
+    return best, bestPart
+end
+
+-- 新增：選最近目標（自動射擊專用）
+local function selectNearestTarget(mode, checkVis)
+    local myChar = LP.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+    local best, bestPart, bestDist = nil, nil, math.huge
+    for _, player in ipairs(getSafePlayers()) do
+        if player ~= LP and isValidTarget(player, false) then
+            local char = player.Character
+            local part = pickPart(char, mode)
+            if part then
+                local isVis = (not checkVis) or isVisible(part.Position)
+                if isVis then
+                    local d = (part.Position - myRoot.Position).Magnitude
+                    if d < bestDist then
+                        bestDist, best, bestPart = d, player, part
                     end
                 end
             end
@@ -561,6 +607,39 @@ local function pickSilentPart(char, primary)
     return primary
 end
 
+-- 靜默開火
+local silentLastFire = 0
+local silentFireCD = 0.01
+
+local function silentFireAt(target, part)
+    if not target or not target.Character or not target.Character.Parent then return false end
+    local lf = Rivals.Fighter and Rivals.Fighter.LocalFighter
+    if not lf or not lf.EquippedItem then return false end
+    pcall(function() lf:Input("StartShooting") end)
+    State.SilentLastTarget = target
+    return true
+end
+
+-- 自動射擊循環（優先最近）
+local function silentAutoFireLoop()
+    if not Config.SilentAim then return end
+    if not Config.SilentAimAutoShoot then return end
+    local now = tick()
+    if now - silentLastFire < silentFireCD then return end
+    if Config.SilentAimHitChance < 100 then
+        if math.random(1, 100) > Config.SilentAimHitChance then return end
+    end
+    -- 自動射擊一律優先選最近的敵人
+    local tgt, part = selectNearestTarget(Config.SilentAimTargetPart, Config.SilentAimWallCheck)
+    if not tgt or not part then return end
+    if silentFireAt(tgt, part) then silentLastFire = now end
+end
+
+RunService.Heartbeat:Connect(function()
+    pcall(silentAutoFireLoop)
+end)
+
+-- Gun 掛鉤（攔截 camData 改寫）
 hookGunModule = function()
     if not Rivals.Ready or not Rivals.Gun then return end
     if shared._LH_GunOrig then pcall(function() Rivals.Gun.StartShooting = shared._LH_GunOrig end) end
@@ -576,13 +655,20 @@ hookGunModule = function()
             if not camData or typeof(camData) ~= "table" then return end
             local camPos = C.CFrame.Position
             State.CamPos = camPos
-            local tgt, part = selectTarget({
-                fov        = Config.SilentAimFOV,
-                checkVis   = Config.SilentAimVisCheck,
-                partMode   = Config.SilentAimTargetPart,
-                stickyTarget = State.SilentLastTarget,
-                stickyBonus  = Config.SilentAimStickiness or 0.05,
-            })
+            local tgt, part
+            if Config.SilentAimAutoShoot then
+                tgt, part = selectNearestTarget(Config.SilentAimTargetPart, Config.SilentAimWallCheck)
+            elseif Config.SilentAim360 then
+                tgt, part = selectTarget360(Config.SilentAimTargetPart, Config.SilentAimWallCheck)
+            else
+                tgt, part = selectTarget({
+                    fov        = Config.SilentAimFOV,
+                    checkVis   = Config.SilentAimWallCheck,
+                    partMode   = Config.SilentAimTargetPart,
+                    stickyTarget = State.SilentLastTarget,
+                    stickyBonus  = Config.SilentAimStickiness or 0.05,
+                })
+            end
             if tgt and part then
                 State.SilentLastTarget = tgt
                 if math.random(1, 100) <= (Config.SilentAimHitChance or 100) then
@@ -681,7 +767,7 @@ local Toggles = Library.Toggles or {}
 Library.Options = Options
 Library.Toggles = Toggles
 
--- ============ 靜默自瞄 GUI（完整 Linoria 版）============
+-- ============ 靜默自瞄 GUI ============
 do
     local L = Tabs.Combat:AddLeftGroupbox('靜默自瞄')
     L:AddToggle('SilentAim', {
@@ -692,15 +778,32 @@ do
         Default = 'None', Mode = 'Toggle',
         SyncToggleState = true, Text = '靜默自瞄'
     })
-    L:AddToggle('SilentAimVisCheck', {
-        Text = '可見性檢測',
-        Default = Config.SilentAimVisCheck,
-        Callback = function(v) Config.SilentAimVisCheck = v end
+    L:AddToggle('SilentAimAutoShoot', {
+        Text = '自動射擊',
+        Default = Config.SilentAimAutoShoot,
+        Callback = function(v) Config.SilentAimAutoShoot = v end
     })
-    L:AddToggle('SilentAimJitter', {
-        Text = '命中隨機化',
-        Default = Config.SilentAimJitter,
-        Callback = function(v) Config.SilentAimJitter = v end
+    L:AddToggle('SilentAimWallCheck', {
+        Text = '牆壁檢測',
+        Default = Config.SilentAimWallCheck,
+        Callback = function(v) Config.SilentAimWallCheck = v end
+    })
+    L:AddToggle('SilentAim360', {
+        Text = '360 度（背後也能打）',
+        Default = Config.SilentAim360,
+        Callback = function(v) Config.SilentAim360 = v end
+    })
+    L:AddToggle('SilentAimFollowMuzzle', {
+        Text = '跟隨槍口',
+        Default = Config.SilentAimFollowMuzzle,
+        Callback = function(v) Config.SilentAimFollowMuzzle = v end
+    })
+    L:AddDivider('目標')
+    L:AddDropdown('SilentAimTargetPart', {
+        Values = {'Head','Torso','Closest'},
+        Default = Config.SilentAimTargetPart,
+        Text = '目標骨骼',
+        Callback = function(v) Config.SilentAimTargetPart = v end
     })
     L:AddSlider('SilentAimFOV', {
         Text = '視野半徑',
@@ -708,18 +811,13 @@ do
         Min = 20, Max = 2000, Rounding = 0,
         Callback = function(v) Config.SilentAimFOV = v end
     })
-    L:AddDropdown('SilentAimTargetPart', {
-        Values = {'Head','Torso','Closest'},
-        Default = Config.SilentAimTargetPart,
-        Text = '目標骨骼',
-        Callback = function(v) Config.SilentAimTargetPart = v end
-    })
     L:AddSlider('SilentAimStickiness', {
         Text = '黏著度',
         Default = Config.SilentAimStickiness,
         Min = 0, Max = 0.5, Rounding = 2,
         Callback = function(v) Config.SilentAimStickiness = v end
     })
+    L:AddDivider('隱蔽')
     L:AddToggle('SilentAimMultipoint', {
         Text = '多點採樣',
         Default = Config.SilentAimMultipoint,
@@ -738,7 +836,6 @@ do
         Default = Config.SilentAimTorsoFallback,
         Callback = function(v) Config.SilentAimTorsoFallback = v end
     })
-    L:AddDivider('去混雜')
     L:AddSlider('SilentAimHitChance', {
         Text = '命中機率 %',
         Default = Config.SilentAimHitChance,
@@ -759,7 +856,7 @@ do
     })
 end
 
--- 設定分頁
+-- ============ 設定分頁 ============
 do
     local L = Tabs.Settings:AddLeftGroupbox('選單')
     L:AddDropdown('GUIToggleKey', {
@@ -805,6 +902,6 @@ task.spawn(function()
     end)
 end)
 
-Library:Notify('模組 1 載入完成：反封鎖 + 框架 + 靜默自瞄', 4)
+Library:Notify('模組 1 載入完成', 4)
 _G["\76\72"] = Library
-print("[v12.0] 模組 1 載入完成")
+print("[v12.0] 模組 1 完整修正版載入完成")
