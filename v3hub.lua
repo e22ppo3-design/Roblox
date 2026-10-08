@@ -2857,79 +2857,239 @@ do
     function GameVisuals.lastWeapon() return nil end
     GameVisuals.uiAlive = true
 end
+-- ============================================================
+-- 第四段-2：游戏外观 + 天气（Linoria 版）
+-- ============================================================
+
+-- ============ 游戏外观（GameVisuals）============
+local GameVisuals = {}
+do
+    local _log = {}
+    local function note(msg)
+        table.insert(_log, os.date("%H:%M:%S") .. "  " .. msg)
+        if #_log > 60 then table.remove(_log, 1) end
+    end
+    GameVisuals.Choices = {}
+    local _spoof = {}
+    local _maskTarget, _maskInner = nil, nil
+
+    local function everyCosmetic(real)
+        local out = {}
+        if type(real) == "table" then
+            for k, v in pairs(real) do out[k] = v end
+        end
+        pcall(function()
+            local cos = Rivals.Cosmetics and Rivals.Cosmetics.Cosmetics
+            if type(cos) ~= "table" then return end
+            for name in pairs(cos) do
+                if out[name] == nil then out[name] = true end
+            end
+        end)
+        return out
+    end
+
+    local function maskRemove()
+        if _maskTarget == nil then return end
+        local target = _maskTarget
+        local inner = _maskInner
+        _maskTarget = nil
+        _maskInner = nil
+        pcall(function() rawset(target, "Data", inner) end)
+    end
+
+    local function syncMask()
+        maskRemove()
+        if Config.GVUnlockAll ~= true then return end
+        pcall(function()
+            local PDC = loadGameModule(LP.PlayerScripts, {"Controllers","PlayerDataController"})
+            if not PDC then return end
+            local cur = PDC.CurrentData
+            if cur == nil then return end
+            local inner = rawget(cur, "Data")
+            if type(inner) ~= "table" then return end
+            local proxy = setmetatable({}, {
+                __index = function(_, k)
+                    local p = _spoof[k]
+                    if p ~= nil then return p(inner[k]) end
+                    return inner[k]
+                end,
+                __newindex = function(_, k, v) inner[k] = v end,
+            })
+            rawset(cur, "Data", proxy)
+            _maskTarget = cur
+            _maskInner = inner
+        end)
+    end
+
+    function GameVisuals.setUnlockAll(on)
+        Config.GVUnlockAll = (on == true)
+        if on then
+            _spoof.CosmeticInventory = everyCosmetic
+        else
+            _spoof.CosmeticInventory = nil
+        end
+        syncMask()
+        note("解锁全部 " .. tostring(on))
+    end
+
+    function GameVisuals.enable()
+        Config.GameVisuals = true
+        pcall(syncMask)
+        note("启用")
+    end
+
+    function GameVisuals.disable()
+        Config.GameVisuals = false
+        maskRemove()
+        GameVisuals.Choices = {}
+        _spoof.CosmeticInventory = nil
+        note("关闭")
+    end
+
+    function GameVisuals.restore()
+        GameVisuals.disable()
+    end
+
+    function GameVisuals.summary()
+        return _log
+    end
+
+    function GameVisuals.ready()
+        return _maskTarget ~= nil
+    end
+
+    function GameVisuals.playEmote(name) end
+    function GameVisuals.emoteList() return {"None"} end
+    function GameVisuals.setWeapon(v) end
+    function GameVisuals.setSkin(v) end
+    function GameVisuals.setCharm(v) end
+    function GameVisuals.setWrap(v) end
+    function GameVisuals.setFinisher(v) end
+    function GameVisuals.setWrapInverted(v) end
+    function GameVisuals.applyRankedCharm(a, b) end
+    function GameVisuals.refreshRankCharmMeta() end
+    function GameVisuals.syncEmotes(v) end
+    function GameVisuals.weaponList() return {"None"} end
+    function GameVisuals.skinList() return {"None"} end
+    function GameVisuals.charmList() return {"None"} end
+    function GameVisuals.wrapList() return {"None"} end
+    function GameVisuals.finisherList() return {"None"} end
+    function GameVisuals.rankNames() return {"Bronze 1"} end
+    function GameVisuals.rankedCharmsFor() return {"Held weapon"} end
+    function GameVisuals.lastWeapon() return nil end
+    GameVisuals.uiAlive = true
+end
 
 -- ============ 天气（Weather）============
 local Weather = {}
-;(function()
+do
     local SoundService = game:GetService("SoundService")
     local TweenService = game:GetService("TweenService")
-    local Vec   = Vector3.new
+    local Vec = Vector3.new
     local WHITE = Color3.new(1, 1, 1)
     local _folder = nil
+
     local function getFolder()
         if _folder and _folder.Parent then return _folder end
-        local f = Instance.new("Folder"); f.Name = "_wx"; f:SetAttribute("WX_Custom", true)
+        local f = Instance.new("Folder")
+        f.Name = "_wx"
+        f:SetAttribute("WX_Custom", true)
         f.Parent = W
-        _folder = f; return f
+        _folder = f
+        return f
     end
+
     local _rain = { drops = {}, conn = nil, folder = nil, dir = nil }
     local RAIN_RADIUS = 70
-    local RAIN_TOP    = 70
-    local RAIN_BOT    = -28
-    local RAIN_MAX    = 420
+    local RAIN_TOP = 70
+    local RAIN_BOT = -28
+    local RAIN_MAX = 420
+
     local function rainFolder()
         if _rain.folder and _rain.folder.Parent then return _rain.folder end
-        local f = Instance.new("Folder"); f.Name = "_wxRain"; f:SetAttribute("WX_Custom", true)
+        local f = Instance.new("Folder")
+        f.Name = "_wxRain"
+        f:SetAttribute("WX_Custom", true)
         f.Parent = getFolder()
-        _rain.folder = f; return f
+        _rain.folder = f
+        return f
     end
+
     local function makeDrop(parent, streakLen, width, color, transp)
         local part = Instance.new("Part")
-        part.Anchored = true; part.CanCollide = false; part.CanQuery = false; part.CanTouch = false
-        part.CastShadow = false; part.Massless = true; part.Transparency = 1
-        part.Size = Vec(0.05,0.05,0.05)
+        part.Anchored = true
+        part.CanCollide = false
+        part.CanQuery = false
+        part.CanTouch = false
+        part.CastShadow = false
+        part.Massless = true
+        part.Transparency = 1
+        part.Size = Vec(0.05, 0.05, 0.05)
         part:SetAttribute("WX_Custom", true)
-        local a0 = Instance.new("Attachment"); a0.Parent = part
-        local a1 = Instance.new("Attachment"); a1.Position = Vec(0.12, -1, 0.05).Unit * streakLen; a1.Parent = part
+        local a0 = Instance.new("Attachment")
+        a0.Parent = part
+        local a1 = Instance.new("Attachment")
+        a1.Position = Vec(0.12, -1, 0.05).Unit * streakLen
+        a1.Parent = part
         local beam = Instance.new("Beam")
-        beam.Attachment0 = a0; beam.Attachment1 = a1
-        beam.Segments = 1; beam.FaceCamera = true
-        beam.Width0 = width; beam.Width1 = width * 0.55
-        beam.LightEmission = 0.35; beam.LightInfluence = 0
+        beam.Attachment0 = a0
+        beam.Attachment1 = a1
+        beam.Segments = 1
+        beam.FaceCamera = true
+        beam.Width0 = width
+        beam.Width1 = width * 0.55
+        beam.LightEmission = 0.35
+        beam.LightInfluence = 0
         beam.Color = ColorSequence.new(color)
         beam.Transparency = NumberSequence.new(transp)
         beam.Parent = part
         part.Parent = parent
         return part, a1, beam
     end
+
     local function seedDrop(d, camPos)
         local ang = math.random() * math.pi * 2
         local rad = math.sqrt(math.random()) * RAIN_RADIUS
-        local y   = camPos.Y + RAIN_TOP - math.random() * (RAIN_TOP - RAIN_BOT)
+        local y = camPos.Y + RAIN_TOP - math.random() * (RAIN_TOP - RAIN_BOT)
         d.pos = Vec(camPos.X + math.cos(ang) * rad, y, camPos.Z + math.sin(ang) * rad)
     end
+
     local function newDrop(folder, i, camPos)
         local base, width, transp, spd0
         if (i % 3) ~= 0 then
-            base, width, transp = 5 + math.random() * 3, 0.10, 0.22
+            base = 5 + math.random() * 3
+            width = 0.10
+            transp = 0.22
             spd0 = 150 + math.random() * 30
         else
-            base, width, transp = 3 + math.random() * 2, 0.06, 0.55
+            base = 3 + math.random() * 2
+            width = 0.06
+            transp = 0.55
             spd0 = 120 + math.random() * 30
         end
         local part, a1, beam = makeDrop(folder, base, width, Color3.fromRGB(180, 202, 232), transp)
-        local d = { part = part, a1 = a1, beam = beam, base = base, len = base,
-                    w0 = width, t0 = transp, spd0 = spd0, spd = spd0 }
+        local d = {
+            part = part, a1 = a1, beam = beam, base = base, len = base,
+            w0 = width, t0 = transp, spd0 = spd0, spd = spd0,
+        }
         seedDrop(d, camPos)
         part.CFrame = CFrame.new(d.pos)
         return d
     end
+
     local function tuneRain()
         local folder = rainFolder()
         local I = math.clamp(Config.WeatherIntensity or 1, 0.15, 2)
-        local n = math.clamp(math.floor(150 * (I < 1 and math.exp(1.75 * (I - 1)) or math.exp(0.85 * (I - 1)))), 16, RAIN_MAX)
+        local rate = 0
+        if I < 1 then
+            rate = math.exp(1.75 * (I - 1))
+        else
+            rate = math.exp(0.85 * (I - 1))
+        end
+        local n = math.clamp(math.floor(150 * rate), 16, RAIN_MAX)
         local drops = _rain.drops
-        local camPos = C and C.CFrame.Position or Vec(0, 0, 0)
+        local camPos = Vec(0, 0, 0)
+        if C then camPos = C.CFrame.Position end
         for i = #drops, n + 1, -1 do
             drops[i].part:Destroy()
             drops[i] = nil
@@ -2938,23 +3098,31 @@ local Weather = {}
             drops[i] = newDrop(folder, i, camPos)
         end
     end
+
     local function buildRain()
-        if _rain.folder then pcall(function() _rain.folder:Destroy() end); _rain.folder = nil end
+        if _rain.folder then
+            pcall(function() _rain.folder:Destroy() end)
+            _rain.folder = nil
+        end
         table.clear(_rain.drops)
         _rain.dir = Vec(0.12, -1, 0.05).Unit
         tuneRain()
     end
+
     local function startRain()
         if _rain.conn then return end
         _rain.conn = RunService.Heartbeat:Connect(function(dt)
-            if not Config.Weather or Config.WeatherType ~= "Rain" then return end
+            if not Config.Weather then return end
+            if Config.WeatherType ~= "Rain" then return end
             if not C then return end
             local camPos = C.CFrame.Position
             local r2 = RAIN_RADIUS * RAIN_RADIUS
             for i = 1, #_rain.drops do
                 local d = _rain.drops[i]
                 local p = d.pos + _rain.dir * (d.spd * dt)
-                local relX, relY, relZ = p.X - camPos.X, p.Y - camPos.Y, p.Z - camPos.Z
+                local relX = p.X - camPos.X
+                local relY = p.Y - camPos.Y
+                local relZ = p.Z - camPos.Z
                 if relY < RAIN_BOT or (relX * relX + relZ * relZ) > r2 then
                     seedDrop(d, camPos)
                     p = d.pos
@@ -2964,35 +3132,52 @@ local Weather = {}
             end
         end)
     end
+
     local function stopRain()
-        if _rain.conn then _rain.conn:Disconnect(); _rain.conn = nil end
-        if _rain.folder then pcall(function() _rain.folder:Destroy() end); _rain.folder = nil end
+        if _rain.conn then
+            _rain.conn:Disconnect()
+            _rain.conn = nil
+        end
+        if _rain.folder then
+            pcall(function() _rain.folder:Destroy() end)
+            _rain.folder = nil
+        end
         table.clear(_rain.drops)
         _rain.dir = nil
     end
+
     local function applyType(name)
         stopRain()
         if name == "Rain" then
-            buildRain(); startRain()
+            buildRain()
+            startRain()
         end
     end
+
     function Weather.enableWeather()
         Config.Weather = true
         applyType(Config.WeatherType or "Rain")
     end
+
     function Weather.disableWeather()
         Config.Weather = false
         stopRain()
     end
+
     function Weather.setType(name)
         Config.WeatherType = name
         if Config.Weather then applyType(name) end
     end
+
     function Weather.setIntensity(v)
         Config.WeatherIntensity = math.clamp(v, 0.15, 2)
         if Config.Weather and Config.WeatherType == "Rain" then tuneRain() end
     end
-    function Weather.setSoundVolume(v) Config.WeatherSoundVolume = v end
+
+    function Weather.setSoundVolume(v)
+        Config.WeatherSoundVolume = v
+    end
+
     function Weather.toggleStorm(on) Config.WeatherStorm = on end
     function Weather.toggleMood(on) Config.WeatherMood = on end
     function Weather.toggleMeteors(on) Config.WeatherMeteors = on end
@@ -3007,11 +3192,15 @@ local Weather = {}
     function Weather.setStormVar(v) Config.WeatherStormVar = math.clamp(v, 0, 30) end
     function Weather.setMeteorRate(v) Config.WeatherMeteorRate = math.clamp(v, 0.25, 3) end
     function Weather.setStarRate(v) Config.WeatherStarRate = math.clamp(v, 0.25, 3) end
-    function Weather.init() if Config.Weather then Weather.enableWeather() end end
-    function Weather.unload() Weather.disableWeather() end
+    function Weather.init()
+        if Config.Weather then Weather.enableWeather() end
+    end
+    function Weather.unload()
+        Weather.disableWeather()
+    end
 end
 
--- ============ 新分页（HUD + 外观 + 天气）============
+-- ============ 新分页（介面 + 外观 + 天气）============
 task.spawn(function()
     task.wait(1)
     if not Window then return end
@@ -3021,8 +3210,18 @@ task.spawn(function()
 
     do
         local M = HUDTab:AddLeftGroupbox('主控')
-        M:AddToggle('HUD_Enabled', { Text = '啟用介面', Default = true, Callback = function(v) if v then HUDPlus.start() else HUDPlus.stop() end end })
-        M:AddToggle('HUD_Watermark', { Text = '浮水印', Default = true, Callback = function(v) Config.HUDWatermark = v end })
+        M:AddToggle('HUD_Enabled', {
+            Text = '啟用介面',
+            Default = true,
+            Callback = function(v)
+                if v then HUDPlus.start() else HUDPlus.stop() end
+            end
+        })
+        M:AddToggle('HUD_Watermark', {
+            Text = '浮水印',
+            Default = true,
+            Callback = function(v) Config.HUDWatermark = v end
+        })
 
         local F = HUDTab:AddRightGroupbox('命中回饋')
         F:AddToggle('FX_HitMarker', { Text = '命中標記', Default = true, Callback = function(v) Config.FXHitMarker = v end })
@@ -3036,20 +3235,54 @@ task.spawn(function()
 
     do
         local L = GameTab:AddLeftGroupbox('外觀')
-        L:AddToggle('GV_Enabled', { Text = '啟用', Default = false, Callback = function(v) if v then GameVisuals.enable() else GameVisuals.disable() end end })
+        L:AddToggle('GV_Enabled', {
+            Text = '啟用',
+            Default = false,
+            Callback = function(v)
+                if v then GameVisuals.enable() else GameVisuals.disable() end
+            end
+        })
         local D = L:AddDependencyBox()
-        D:AddToggle('GV_UnlockAll', { Text = '解鎖全部', Default = false, Callback = function(v) GameVisuals.setUnlockAll(v) end })
+        D:AddToggle('GV_UnlockAll', {
+            Text = '解鎖全部',
+            Default = false,
+            Callback = function(v) GameVisuals.setUnlockAll(v) end
+        })
         D:SetupDependencies({ { Toggles.GV_Enabled, true } })
-        L:AddButton({ Text = '重置全部', Func = function() pcall(GameVisuals.restore) end })
+        L:AddButton({
+            Text = '重置全部',
+            Func = function() pcall(GameVisuals.restore) end
+        })
     end
 
     do
         local L = WXTab:AddLeftGroupbox('天氣')
-        L:AddToggle('WX_Enabled', { Text = '啟用', Default = false, Callback = function(v) if v then Weather.enableWeather() else Weather.disableWeather() end end })
+        L:AddToggle('WX_Enabled', {
+            Text = '啟用',
+            Default = false,
+            Callback = function(v)
+                if v then Weather.enableWeather() else Weather.disableWeather() end
+            end
+        })
         local D = L:AddDependencyBox()
-        D:AddDropdown('WX_Type', { Values = {'Rain','Snow','Petals','Autumn','Mist','Ash','Sandstorm','Embers','Fireflies'}, Default = 'Rain', Text = '降水', Callback = function(v) Weather.setType(v) end })
-        D:AddSlider('WX_Intensity', { Text = '強度', Default = 1, Min = 0.15, Max = 2, Rounding = 2, Callback = function(v) Weather.setIntensity(v) end })
-        D:AddSlider('WX_Volume', { Text = '音量', Default = 0.35, Min = 0, Max = 1, Rounding = 2, Callback = function(v) Weather.setSoundVolume(v) end })
+        D:AddDropdown('WX_Type', {
+            Values = {'Rain','Snow','Petals','Autumn','Mist','Ash','Sandstorm','Embers','Fireflies'},
+            Default = 'Rain',
+            Text = '降水',
+            Callback = function(v) Weather.setType(v) end
+        })
+        D:AddSlider('WX_Intensity', {
+            Text = '強度',
+            Default = 1,
+            Min = 0.15, Max = 2, Rounding = 2,
+            Callback = function(v) Weather.setIntensity(v) end
+        })
+        D:AddSlider('WX_Volume', {
+            Text = '音量',
+            Default = 0.35,
+            Min = 0, Max = 1, Rounding = 2,
+            Callback = function(v) Weather.setSoundVolume(v) end
+        })
         D:AddToggle('WX_Storm', { Text = '風暴與閃電', Default = false, Callback = function(v) Weather.toggleStorm(v) end })
         D:AddToggle('WX_Meteors', { Text = '流星', Default = false, Callback = function(v) Weather.toggleMeteors(v) end })
         D:AddToggle('WX_Stars', { Text = '流星雨', Default = false, Callback = function(v) Weather.toggleShootingStars(v) end })
@@ -3058,6 +3291,6 @@ task.spawn(function()
     end
 end)
 
-Library:Notify('v12.0 第四段载入完成', 4)
-print("[v12.0] 第四段-2 载入完成")
-print("[v12.0] 全部载入完成")
+Library:Notify('v12.0 第四段載入完成', 4)
+print("[v12.0] 第四段-2 載入完成")
+print("[v12.0] 全部載入完成")
