@@ -1829,3 +1829,1060 @@ end)
 Library:Notify('v12.0 整合版載入完成', 4)
 _G["\76\72"] = Library
 print("[v12.0] 整合版載入完成")
+-- ============================================================
+-- LuaHook v12.0 — 狂暴完整版（Linoria 原文，砍 Orbit）
+-- 從你之前貼的 Linoria 源碼搬過來，Orbit 相關刪除
+-- 接在整合版結尾
+-- ============================================================
+
+-- ============ 狂暴設定 ============
+Config.Rage = false
+Config.RageMode = "Polar"
+Config.RageGumMode = "on"
+Config.RageVoidDepth = "deep"
+Config.RageVoidMove = true
+Config.RageVoidMinStep = 25000
+Config.RageVoidJitterLocal = false
+Config.RageVoidJitterStuds = 2000
+Config.RageGatePoison = true
+Config.RagePredictPrefire = true
+Config.RagePredictResurface = true
+Config.RageSkipImmune = true
+Config.RageIdentityDance = true
+Config.RageAttackContinuity = true
+Config.RageAttackTranslocate = true
+Config.RageBaitHeldMs = 300
+Config.RageBaitRate = 2
+Config.RageRestoreMode = "auto"
+Config.RagePhysicsFlags = true
+Config.RageCameraAnchor = true
+Config.RageHPPriority = true
+Config.RageFastTargetSwitch = true
+Config.RageVisCheck = false
+Config.RageKnifeBot = true
+Config.RageShieldBackstab = true
+Config.RageKnifeBackstab = true
+Config.RageGumVoidFire = true
+Config.RageOnEmpty = "Swap"
+Config.RagePreferredSlot = "Primary"
+Config.RageSwitchMelee = false
+Config.RageSwitchRateLimit = 0.06
+Config.RageEyeMuzzleSep = 0.07
+Config.RageKillPlaneBuffer = 200
+Config.RageTaps = 6
+Config.RageTapsPerFrame = 1
+Config.RageHideJitter = true
+Config.RagePolarParity = true
+Config.RagePrioritizeHackers = true
+Config.RageDirectFire = true
+
+State.RageTarget = nil
+State.RageRealCF = nil
+State.RageRealChar = nil
+State.RageVoidCF = nil
+State.RageVoidNext = 0
+State.RageVoidBase = nil
+State.RageVoidSteps = 0
+State.RageLastFireTime = 0
+State.RageReloadLast = 0
+State.RageSwitchLast = 0
+State.RageInMatch = false
+State.RageStatus = "Idle"
+State.RageFiring = false
+State.RageVoidActive = false
+State.RageTranslocating = false
+State.RageFireFromPos = nil
+State.RageFireAimPos = nil
+State.RageFireHitPart = nil
+State.RageFireStamp = 0
+State.RageDealtTotal = 0
+State.RageTrueVelocityMap = {}
+State.RageSuspectedProtection = {}
+State.RageBacktrackBuf = {}
+State.RageCharTokens = {}
+State.RageGlueBound = false
+State.RageGumMode = "off"
+State.RageGlueVerified = "n/a"
+State.IdentitySafe = nil
+State.CapabilityObserver = false
+State.CapabilityErrors = 0
+State.CapabilityKilledAt = nil
+State.CapabilityLastStatus = nil
+State.CapabilityRecoveries = 0
+State.CapabilityDirty = false
+State.CapabilitySeam = nil
+State.ViewAngleForged = false
+State.RageWhyProtected = 0
+State.RageWhyNoPark = 0
+State.RageWhyPrimeWait = 0
+State.RageWhyPredict = 0
+State.RageWhyDip = 0
+State.RageWhyMeleeCd = 0
+State.RageFireFrames = 0
+State.RageImmuneStale = 0
+State.RageAmmoUnreadable = 0
+State.RageBaitHoldFrames = 0
+State.RageBaitPinRefused = 0
+State.RageBaitRingFallbacks = 0
+State.RageVoidFires = 0
+State.RagePoisonBlips = 0
+State.RagePreFires = 0
+State.RagePredTarget = nil
+State.RagePredHide = 0
+State.RagePredHideN = 0
+State.RagePredAtk = 0
+State.RagePredAtkN = 0
+State.RagePredPhase = "?"
+State.RagePredFor = 0
+State.RagePredDue = 0
+State.RagePredWindow = false
+State.RagePredMag = 0
+State.RageParkDirty = false
+State.RageLastParkPos = nil
+State.RageParkLatchCanary = 0
+State.RageLatchStuds = 0
+State.RageOrderCanary = 0
+State.RagePostPark = false
+State.RageBelowPlaneFrames = 0
+State.RageBelowPlaneLast = 0
+State.RageBelowPlaneDeaths = 0
+State.RageParkDriftFrames = 0
+State.RageParkDrift = 0
+State.RageParkDriftY = 0
+State.RageEyeClampFrames = 0
+State.RageParkClampFrames = 0
+State.RageTranslocateBaits = 0
+State.RageFireZeroFrames = 0
+State.RageBlankCanary = 0
+State.RageTracerCanary = 0
+State.RageOOBParkCanary = 0
+State.RageHitsOn = 0
+State.RageHitsOff = 0
+State.RageOffFromSelf = 0
+State.RageOffFromTarget = 0
+State.RageKnifeSwings = 0
+State.RageKnifeStatus = "idle"
+State.RageRawSet = false
+State.RagePhysRate = "off"
+State.RageFPDHPath = "not attempted"
+State.RageImmuneOverride = 0
+State.RageFireWhy = nil
+
+-- ============ Identity 工具 ============
+local _identGet, _identSet, _identTried = nil, nil, false
+local function identEnsure()
+    if _identTried then return _identSet ~= nil end
+    _identTried = true
+    pcall(function()
+        if type(getthreadidentity) == "function" and type(setthreadidentity) == "function" then
+            _identGet, _identSet = getthreadidentity, setthreadidentity
+        end
+    end)
+    State.RageRawSet = _identSet ~= nil
+    return _identSet ~= nil
+end
+
+local _identitySafeLatched = nil
+local function identityIsSafe()
+    if _identitySafeLatched == nil then
+        _identitySafeLatched = (Config.RageIdentityDance == true)
+        State.IdentitySafe = _identitySafeLatched
+    end
+    return _identitySafeLatched
+end
+
+local function atId2(fn, ...)
+    if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
+    local args = table.pack(...)
+    local done, ok, res = false, false, nil
+    task.spawn(function()
+        local okPrev, prev = pcall(_identGet)
+        if not okPrev then return end
+        if not pcall(_identSet, 2) then return end
+        done = true
+        ok, res = pcall(fn, table.unpack(args, 1, args.n))
+        pcall(_identSet, prev)
+    end)
+    if done then return ok, res end
+    return pcall(fn, table.unpack(args, 1, args.n))
+end
+
+local function atId8(fn, ...)
+    if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
+    local args = table.pack(...)
+    local done, ok, res = false, false, nil
+    task.spawn(function()
+        local okPrev, prev = pcall(_identGet)
+        if not okPrev then return end
+        if not pcall(_identSet, 8) then return end
+        done = true
+        ok, res = pcall(fn, table.unpack(args, 1, args.n))
+        pcall(_identSet, prev)
+    end)
+    if done then return ok, res end
+    return pcall(fn, table.unpack(args, 1, args.n))
+end
+
+pcall(function()
+    game:GetService("LogService").MessageOut:Connect(function(msg)
+        if type(msg) ~= "string" or not string.find(msg, "lacking capability", 1, true) then return end
+        State.CapabilityErrors = (State.CapabilityErrors or 0) + 1
+        State.CapabilityLastStatus = tostring(State.RageStatus)
+        if not State.CapabilityKilledAt then
+            State.CapabilityKilledAt = tostring(State.RageStatus)
+            State.CapabilityDirty = true
+        end
+    end)
+    State.CapabilityObserver = true
+end)
+
+-- ============ Deflect 偵測 ============
+local DEFLECT_ANIM_IDS = {
+    ["14761240825"]=true,["14761220206"]=true,["14761234917"]=true,["14761221711"]=true,
+    ["14761223422"]=true,["14761225204"]=true,["14761232380"]=true,["90436105114997"]=true,
+    ["90797895557136"]=true,["77995180947430"]=true,["111943779640553"]=true,["131072510521727"]=true,
+    ["132022220827223"]=true,["116315405171252"]=true,["110358509711635"]=true,["98242486936084"]=true,
+    ["81132288854196"]=true,["123293403148826"]=true,["136354716301184"]=true,["120567011479119"]=true,
+    ["92502373956550"]=true,["83541611040586"]=true,["92773106977434"]=true,["75844592081515"]=true,
+    ["75381142568185"]=true,
+}
+local _deflecting, _deflGen = {}, {}
+local _deflHookLive = false
+local DEFLECT_CLEAR_PAD = 0.05
+
+local function isDeflectingAnim(player)
+    if not player or not player.Character then return false end
+    local hum = player.Character:FindFirstChildOfClass("Humanoid")
+    if not hum then return false end
+    local animator = hum:FindFirstChildOfClass("Animator")
+    if not animator then return false end
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+        if track.Name:lower():find("deflect") then return true end
+        local anim = track.Animation
+        local id = anim and anim.AnimationId
+        if id then
+            local num = id:match("(%d+)")
+            if num and DEFLECT_ANIM_IDS[num] then return true end
+        end
+    end
+    return false
+end
+
+local function isDeflecting(player)
+    if not player then return false end
+    if _deflecting[player.UserId] then return true end
+    if _deflHookLive then return false end
+    return isDeflectingAnim(player)
+end
+
+;(function()
+    local function recordDeflect(self)
+        local fighter = self and self.ClientFighter
+        local plr = fighter and fighter.Player
+        if not plr then return end
+        local uid = plr.UserId
+        local dur = self.Info and self.Info.DeflectDuration
+        if type(dur) ~= "number" then dur = 0.1 end
+        _deflecting[uid] = true
+        local gen = (_deflGen[uid] or 0) + 1
+        _deflGen[uid] = gen
+        task.delay(dur + DEFLECT_CLEAR_PAD, function()
+            if _deflGen[uid] == gen then _deflecting[uid] = nil end
+        end)
+    end
+    task.spawn(function()
+        for _ = 1, 10 do
+            local ok, katana = pcall(function()
+                return require(LP.PlayerScripts.Modules.Items.Katana)
+            end)
+            if ok and type(katana) == "table" and type(katana._StartDeflecting) == "function" then
+                local orig = shared._LH_KatanaDeflOrig
+                if not orig then orig = clonefunction(katana._StartDeflecting) end
+                shared._LH_KatanaMod = katana
+                shared._LH_KatanaDeflOrig = orig
+                if setreadonly then pcall(setreadonly, katana, false) end
+                katana._StartDeflecting = function(self, ...)
+                    pcall(recordDeflect, self)
+                    return orig(self, ...)
+                end
+                _deflHookLive = true
+                return
+            end
+            task.wait(1)
+        end
+    end)
+end)()
+
+-- ============ 免疫偵測 ============
+local _invincible, _invincEnt = {}, {}
+local function isSpawnProtected(player)
+    if not player then return false end
+    if player.Character and player.Character:FindFirstChildOfClass("ForceField") then return true end
+    if not Rivals.Fighter then return false end
+    local map = Rivals.Fighter._player_to_fighter
+    if not map then return false end
+    local f = map[player]
+    if not f then return false end
+    local e = f.Entity
+    if not e then return false end
+    local uid = player.UserId
+    if _invincEnt[uid] ~= e then
+        _invincible[uid] = nil
+        pcall(function()
+            local live = e:Get("IsInvincible") == true
+            e:GetDataChangedSignal("IsInvincible"):Connect(function()
+                _invincible[uid] = e:Get("IsInvincible") == true
+            end)
+            _invincible[uid] = live
+        end)
+        _invincEnt[uid] = e
+    end
+    return _invincible[uid] == true
+end
+
+-- ============ 武器工具 ============
+local MELEE_NMS = {
+    ["Battle Axe"]=true,["Chainsaw"]=true,["Daggers"]=true,["Fists"]=true,
+    ["Gunblade"]=true,["Katana"]=true,["Knife"]=true,["Scythe"]=true,["Trowel"]=true,
+}
+local KATANA_NAMES = {"katana","saber","lightning bolt","evil trident","tridant","devil's trident","linked sword","keytana","cutlass","swordfish","riptide"}
+local KNIFE_NAMES = {"knife","karambit","balisong","chancla","machete","candy cane","armature","daggers","axe"}
+
+local function getLocalFighter()
+    if not Rivals.Ready then return nil end
+    return Rivals.Fighter and Rivals.Fighter.LocalFighter
+end
+local function getEquippedItem()
+    local lf = getLocalFighter()
+    return lf and lf.EquippedItem or nil
+end
+local function getWeaponName(player)
+    if not player or not player.Character then return "?" end
+    local ok, res = pcall(function()
+        if Rivals.Ready and Rivals.Fighter and Rivals.Fighter._player_to_fighter then
+            local f = Rivals.Fighter._player_to_fighter[player]
+            if f and f.EquippedItem and f.EquippedItem.Info then
+                return f.EquippedItem.Info.Name
+            end
+        end
+        return nil
+    end)
+    if ok and type(res) == "string" and res ~= "" then return res end
+    return "?"
+end
+local function isKatana(player)
+    local w = getWeaponName(player):lower()
+    for _, n in ipairs(KATANA_NAMES) do
+        if w:find(n, 1, true) then return true end
+    end
+    return isDeflecting(player)
+end
+local function isLocalKnife()
+    local lf = getLocalFighter()
+    if lf and lf.EquippedItem then
+        local name = lf.EquippedItem.Name:lower()
+        for _, n in ipairs(KNIFE_NAMES) do
+            if name:find(n, 1, true) then return true end
+        end
+    end
+    return false
+end
+local function isEnemyKnife(player)
+    if not player then return false end
+    local w = getWeaponName(player):lower()
+    for _, n in ipairs(KNIFE_NAMES) do
+        if w:find(n, 1, true) then return true end
+    end
+    return false
+end
+local function isRiotShield(player)
+    local w = getWeaponName(player):lower()
+    return w:find("riot shield") or w:find("energy shield") or w:find("tombstone shield")
+        or w:find("broken surfboard", 1, true) or w == "door" or w == "sled" or w == "masterpiece"
+end
+local function ownsRiotShield(player)
+    if not player then return false end
+    local ok, res = pcall(function()
+        if not (Rivals.Ready and Rivals.Fighter and Rivals.Fighter._player_to_fighter) then return false end
+        local f = Rivals.Fighter._player_to_fighter[player]
+        local items = f and f.Items
+        if type(items) ~= "table" then return false end
+        for _, it in items do
+            local n = nil
+            if type(it) == "table" then
+                n = it.Name
+                if n == nil and it.Info then n = it.Info.Name end
+            end
+            if type(n) == "string" then
+                local low = n:lower()
+                if low:find("riot shield") or low:find("energy shield") or low:find("tombstone shield") then
+                    return true
+                end
+            end
+        end
+        return false
+    end)
+    return ok and res == true
+end
+
+local function inMatch()
+    local envOk = false
+    pcall(function()
+        local lf = Rivals.Fighter and Rivals.Fighter.LocalFighter
+        if lf ~= nil and lf:Get("EnvironmentID") ~= nil and lf:IsAlive() then envOk = true end
+    end)
+    if envOk then return true end
+    if LP:GetAttribute("TeamID") ~= nil then return true end
+    if LP.Team ~= nil then return true end
+    return false
+end
+
+local SANE_POS_LIMIT = 100000
+local function isSanePos(p)
+    return p == p
+        and math.abs(p.X) < SANE_POS_LIMIT
+        and math.abs(p.Y) < SANE_POS_LIMIT
+        and math.abs(p.Z) < SANE_POS_LIMIT
+end
+local function posInPart(pos, part)
+    if not part or not part.Parent then return false end
+    local lpv = part.CFrame:PointToObjectSpace(pos)
+    local s = part.Size * 0.5
+    return math.abs(lpv.X) <= s.X and math.abs(lpv.Y) <= s.Y and math.abs(lpv.Z) <= s.Z
+end
+local function posIsOOB(pos)
+    local ok, result = pcall(function()
+        for _, p in ipairs(CollectionService:GetTagged("OutOfBoundsSafePart")) do
+            if posInPart(pos, p) then return false end
+        end
+        for _, p in ipairs(CollectionService:GetTagged("OutOfBoundsPart")) do
+            if posInPart(pos, p) then return true end
+        end
+        return false
+    end)
+    return ok and result == true
+end
+local function killFloor()
+    local ok, val = pcall(function() return W.FallenPartsDestroyHeight end)
+    if ok and type(val) == "number" and val == val then return val + Config.RageKillPlaneBuffer end
+    return -400
+end
+local function isValidRageTarget(player, keepDeflect, rageScope)
+    if not player or player == LP then return false end
+    if Config.TeamCheck and isTeammate(player) then return false end
+    if not isAlive(player) then return false end
+    if Config.RageSkipImmune and not rageScope and isSpawnProtected(player) then return false end
+    local char = player.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    if Config.RageVisCheck and not rageScope and not isVisible(hrp.Position) then return false end
+    return true
+end
+
+print("[v12.0] 狂暴完整版 — 基礎載入完成")
+```
+
+第一則到這裡。第二則接續（Rage 核心 + GUI）：
+
+```lua
+-- ============================================================
+-- 狂暴完整版 — 第二則（Rage 核心 + GUI）
+-- ============================================================
+
+local Rage = {}
+;(function()
+    local function lookCF(fromPos, toPos)
+        local dir = toPos - fromPos
+        if dir.Magnitude < 1e-4 then dir = Vector3.new(0, -1, 0) end
+        local up = Vector3.new(0, 1, 0)
+        if math.abs(dir.Unit.Y) > 0.999 then up = Vector3.new(0, 0, 1) end
+        return CFrame.lookAt(fromPos, fromPos + dir, up)
+    end
+    Rage._lookCF = lookCF
+    local RAGE_CLAMP_FRAC = 0.30
+
+    local function findTarget()
+        local myChar = LP.Character
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        local cands = {}
+        for _, p in ipairs(getSafePlayers()) do
+            if isValidRageTarget(p, true, true) then
+                local hum = p.Character:FindFirstChildOfClass("Humanoid")
+                local hrp = p.Character:FindFirstChild("HumanoidRootPart")
+                local d = 9999
+                local sane = myRoot ~= nil and hrp ~= nil and isSanePos(hrp.Position)
+                if sane then d = (hrp.Position - myRoot.Position).Magnitude end
+                if (not sane) or d <= (Config.MaxDistance or 1200) then
+                    table.insert(cands, { p = p, hp = hum.Health, d = d })
+                end
+            end
+        end
+        if #cands == 0 then return nil end
+        if Config.RageHPPriority then
+            table.sort(cands, function(a, b)
+                if math.abs(a.hp - b.hp) > 10 then return a.hp < b.hp end
+                return a.d < b.d
+            end)
+        else
+            table.sort(cands, function(a, b) return a.d < b.d end)
+        end
+        return cands[1].p
+    end
+    Rage._findTarget = findTarget
+
+    local function itemIsMelee(item)
+        if not item then return false end
+        local viaInfo = false
+        pcall(function()
+            local info = item.Info
+            if info == nil then return end
+            if info.Type == "Melee" or info.Class == "Melee" then viaInfo = true return end
+            if type(info.AttackReach) == "number" and info.MaxAmmo == nil then viaInfo = true end
+        end)
+        if viaInfo then return true end
+        local okN, nm = pcall(function() return item:Get("Name") or item.Name end)
+        if okN and type(nm) == "string" and MELEE_NMS[nm] then return true end
+        return false
+    end
+    Rage._itemIsMelee = itemIsMelee
+
+    local function weaponReady(it)
+        if not it then return false end
+        local okE, equipping = pcall(function() return it:IsEquipping() end)
+        if okE and equipping then return false end
+        if (it._reload_cooldown or 0) > tick() then return false end
+        if itemIsMelee(it) then return true end
+        local okA, ammo = pcall(function() return it:Get("Ammo") end)
+        if not okA then
+            State.RageAmmoUnreadable = (State.RageAmmoUnreadable or 0) + 1
+            return true
+        end
+        return type(ammo) == "number" and ammo > 0
+    end
+    Rage._weaponReady = weaponReady
+
+    Rage._weaponRecovery = function(it)
+        if not it then return "no item" end
+        if itemIsMelee(it) then return "loaded" end
+        local mode = Config.RageOnEmpty or "Swap"
+        local okA, ammo = pcall(function() return it:Get("Ammo") end)
+        local empty = not (okA and type(ammo) == "number" and ammo > 0)
+        if mode ~= "Swap" or not empty then
+            if tick() - (State.RageReloadLast or 0) < 0.5 then return "throttled" end
+            State.RageReloadLast = tick()
+            local lf = getLocalFighter()
+            if lf then pcall(function() lf:Input("StartReloading") end) end
+            pcall(function() it:StartReloading() end)
+            return "requested"
+        end
+        local lf = getLocalFighter()
+        local items = lf and lf.Items
+        if type(items) ~= "table" then return "no items" end
+        if tick() - (State.RageSwitchLast or 0) < 0.5 then return "swap-wait" end
+        local pref = 1
+        if Config.RagePreferredSlot == "Secondary" then pref = 2
+        elseif Config.RagePreferredSlot == "Melee" then pref = 3 end
+        local other = pref == 1 and 2 or 1
+        for _, slot in ipairs({ pref, other }) do
+            local w = items[slot]
+            if w and w ~= it then
+                local okW, wammo = pcall(function() return w:Get("Ammo") end)
+                if okW and type(wammo) == "number" and wammo > 0 then
+                    State.RageSwitchLast = tick()
+                    local okE = pcall(function() lf:EquipItem(slot) end)
+                    if okE then return "swap" end
+                end
+            end
+        end
+        return "no swap"
+    end
+
+    local _shootEnum = nil
+    local function polarFire(eyePos, aimPos, hh)
+        local it = getEquippedItem()
+        if not it then State.RageFireWhy = "no item"; return 0 end
+        pcall(function()
+            it._shoot_cooldown = 0
+            it._shoot_cooldown_no_ammo = 0
+            it._last_shot = tick() - 1
+        end)
+        if State.CapabilityDirty then
+            State.CapabilityDirty = false
+            _shootEnum = nil
+        end
+        if _shootEnum == nil then
+            pcall(function() _shootEnum = EnumLibrary:ToEnum("StartShooting") end)
+        end
+        if _shootEnum == nil then State.RageFireWhy = "no enum"; return 0 end
+        if not UseItem then State.RageFireWhy = "no remote"; return 0 end
+        local okId, objId = pcall(function() return it:Get("ObjectID") end)
+        if not okId or not objId then State.RageFireWhy = "no objId"; return 0 end
+        local base = eyePos - Vector3.new(0, 2.5, 0)
+        local eyeCF = lookCF(base + Vector3.new(0, 2.5, 0), aimPos)
+        local muzzleCF = eyeCF - Vector3.new(0, Config.RageEyeMuzzleSep, 0)
+        local sent = 0
+        local okLoop, loopErr = pcall(function()
+            for _ = 1, math.max(1, math.min(Config.RageTapsPerFrame or 1, Config.RageTaps or 6)) do
+                local inner = {}
+                SharedEncode.buildShotFields(inner, eyeCF, muzzleCF, hh, aimPos, true, RAGE_CLAMP_FRAC, 1.0)
+                local env = { [utf8.char(1)] = inner }
+                UseItem:FireServer(objId, _shootEnum, env, nil)
+                sent = sent + 1
+            end
+        end)
+        if not okLoop then State.RageFireWhy = "send threw: " .. tostring(loopErr) end
+        State.Shots = State.Shots + sent
+        return sent
+    end
+
+    local function meleeStrike(hpos, hh, tgt)
+        local it = getEquippedItem()
+        if it == nil then State.RageKnifeStatus = "no item" return false end
+        local prof = nil
+        pcall(function()
+            local info = it.Info
+            if info == nil then return end
+            if info.MaxAmmo ~= nil then return end
+            prof = { heavy = info.CriticalDamage ~= nil }
+        end)
+        if prof == nil then State.RageKnifeStatus = "not melee" return false end
+        local actionName = "StartShooting"
+        if prof.heavy then actionName = "StartAiming" end
+        local lf = getLocalFighter()
+        if lf == nil then State.RageKnifeStatus = "no LocalFighter" return false end
+        local sent = pcall(function() lf:Input(actionName) end)
+        if sent then
+            State.Shots = State.Shots + 1
+            State.RageKnifeSwings = (State.RageKnifeSwings or 0) + 1
+            State.RageKnifeStatus = "swinging " .. actionName
+        else
+            State.RageKnifeStatus = "send failed"
+        end
+        return sent
+    end
+
+    local RENDER_NAME = "LuaHook_Polar_Restore"
+    local CAMERA_NAME = "LuaHook_Polar_CamAnchor"
+    local _realCF, _realChar = nil, nil
+    local _voidCF = nil
+    local _target = nil
+    local _firing = false
+    local _inMatch = false
+    local _deflectSince = 0
+    local _notified = nil
+    local _conn, _stepConn, _charConn = nil, nil, nil
+    local VOID_MIN_STEP = 25000
+    local VOID_R_MIN = 110000
+    local VOID_R_MAX = 140000
+    local DEFLECT_MAX_HOLD = 1.5
+    local IMMUNE_MAX_HOLD = 6.0
+    local _immuneSince = 0
+    local _immuneTgt = nil
+    local _preParkCF = nil
+    local PRIME_S = 0.07
+    local HIDE_JITTER_MAX = 0.25
+    local _hiding = false
+    local _primeUntil = 0
+
+    local FFLAGS_ON = { DFIntS2PhysicsSenderRate = "120", DFIntAssemblyHistoryBufferSize = "2147483648", DFIntAssemblyHistorySkipSize = "0" }
+    local FFLAGS_OFF = { DFIntS2PhysicsSenderRate = "15", DFIntAssemblyHistoryBufferSize = "15", DFIntAssemblyHistorySkipSize = "8" }
+    local _fpdhOriginal = nil
+    local _flagsOn = false
+
+    local function fflagApi()
+        local set, get, name = nil, nil, "none"
+        pcall(function()
+            if type(setfflag) == "function" then set, name = setfflag, "setfflag"
+            elseif type(setfastflag) == "function" then set, name = setfastflag, "setfastflag" end
+            if type(getfflag) == "function" then get = getfflag end
+        end)
+        return set, get, name
+    end
+
+    local _fpdhIdTried = false
+    local _fpdhDead = false
+    local function writeFPDH(value)
+        if _fpdhDead then return false, "refused earlier" end
+        if not identityIsSafe() then return false, "identity off" end
+        if not _fpdhIdTried then _fpdhIdTried = true identEnsure() end
+        if _identSet == nil then return false, "no identity API" end
+        local wrote = false
+        task.spawn(function()
+            local okPrev, prev = pcall(_identGet)
+            if not okPrev then return end
+            if not pcall(_identSet, 8) then return end
+            local sp = sethiddenproperty
+            local wroteVia = false
+            if type(sp) == "function" then
+                wroteVia = pcall(sp, W, "FallenPartsDestroyHeight", value)
+            end
+            if not wroteVia then
+                pcall(function() W.FallenPartsDestroyHeight = value end)
+            end
+            pcall(_identSet, prev)
+            local okR, v = pcall(function() return W.FallenPartsDestroyHeight end)
+            if okR then
+                if value ~= value then wrote = (v ~= v) else wrote = (v == value) end
+            end
+        end)
+        if wrote then return true, "identity 8" end
+        _fpdhDead = true
+        return false, "refused"
+    end
+
+    local function setPhysicsFlags(on)
+        if on == _flagsOn then return end
+        if on and Config.RagePhysicsFlags == false then return end
+        _flagsOn = on
+        if _fpdhOriginal == nil then
+            local prev = W.FallenPartsDestroyHeight
+            if prev ~= prev then prev = -500 end
+            _fpdhOriginal = prev
+        end
+        if on then
+            writeFPDH(0/0)
+        else
+            writeFPDH(_fpdhOriginal)
+        end
+        local set, get, setName = fflagApi()
+        if set == nil then
+            State.RagePhysRate = "no fflag setter"
+            return
+        end
+        local want = on and FFLAGS_ON or FFLAGS_OFF
+        for name, value in want do pcall(set, name, value) end
+        State.RagePhysRate = setName .. " " .. (on and "verified" or "off")
+    end
+    Rage._setPhysicsFlags = setPhysicsFlags
+
+    local function restoreMode()
+        local m = Config.RageRestoreMode
+        if m == "kerp" or m == "auto" then m = "kicia" end
+        if m == "kicia" or m == "render" or m == "none" then return m end
+        return "none"
+    end
+
+    local function rawSetCFrame(hrp, cf)
+        identEnsure()
+        if _identSet ~= nil and identityIsSafe() then
+            local wrote = false
+            task.spawn(function()
+                local okPrev, prev = pcall(_identGet)
+                if not okPrev then return end
+                if not pcall(_identSet, 8) then return end
+                wrote = pcall(function() hrp.CFrame = cf end)
+                pcall(_identSet, prev)
+            end)
+            if wrote then return true end
+        end
+        return pcall(function() hrp.CFrame = cf end)
+    end
+    local function displace(hrp, cf)
+        if _preParkCF == nil then _preParkCF = hrp.CFrame end
+        return rawSetCFrame(hrp, cf)
+    end
+    Rage._displace = displace
+
+    local function voidAxis()
+        local v = math.random(VOID_R_MIN, VOID_R_MAX)
+        if math.random(0, 1) == 0 then return -v end
+        return v
+    end
+    local VOID_DEEP_AXIS = 1073741824
+    local VOID_DEEP_JITTER = 0.4
+    local _voidOrder = { 1, 2, 3 }
+    local function voidDeep() return Config.RageVoidDepth ~= "shallow" end
+    local function deepMag(allowNeg)
+        local m = VOID_DEEP_AXIS * (1 + math.random() * VOID_DEEP_JITTER)
+        if allowNeg and math.random(0, 1) == 1 then return -m end
+        return m
+    end
+    local function rollVoidDeep()
+        local ang = math.random() * math.pi * 2
+        local r = math.random(1000, 1500)
+        local x = math.cos(ang) * r
+        local y = math.random(1000, 1500)
+        local z = math.sin(ang) * r
+        local o = _voidOrder
+        o[1], o[2], o[3] = 1, 2, 3
+        for i = 3, 2, -1 do
+            local j = math.random(1, i)
+            o[i], o[j] = o[j], o[i]
+        end
+        for i = 1, math.random(1, 3) do
+            local axis = o[i]
+            if axis == 1 then x = deepMag(true)
+            elseif axis == 2 then y = deepMag(false)
+            else z = deepMag(true) end
+        end
+        return CFrame.new(x, y, z)
+    end
+    local function rollVoid()
+        if voidDeep() then return rollVoidDeep() end
+        return CFrame.new(voidAxis(), math.random(VOID_R_MIN, VOID_R_MAX), voidAxis())
+    end
+    local function voidCFrame()
+        local prev = _voidCF
+        local cf = rollVoid()
+        if prev then
+            local tries = 0
+            while tries < 8 and (cf.Position - prev.Position).Magnitude < VOID_MIN_STEP do
+                cf = rollVoid()
+                tries = tries + 1
+            end
+        end
+        _voidCF = cf
+        return cf
+    end
+
+    local function hide(hrp, status)
+        _firing = false
+        State.RageFiring = false
+        State.RageStatus = status
+        State.RageVoidActive = true
+        _hiding = true
+        _primeUntil = 0
+        displace(hrp, voidCFrame())
+    end
+
+    local function polarTick(ch, hrp)
+        local tgt = _target
+        if tgt and (not tgt.Parent or not tgt.Character or not isAlive(tgt) or isTeammate(tgt)) then tgt = nil end
+        if not tgt then tgt = findTarget() end
+        _target = tgt
+        State.RageTarget = tgt
+        if not tgt or not tgt.Character then return hide(hrp, "No target") end
+        local holdFire = isSpawnProtected(tgt) and Config.RageSkipImmune
+        if not holdFire then
+            _immuneSince, _immuneTgt = 0, nil
+        else
+            local now = tick()
+            if _immuneTgt ~= tgt then _immuneSince, _immuneTgt = now, tgt end
+            if now - _immuneSince > IMMUNE_MAX_HOLD then holdFire = false end
+        end
+        if isDeflecting(tgt) then
+            local now = tick()
+            if _deflectSince == 0 then _deflectSince = now end
+            if now - _deflectSince < DEFLECT_MAX_HOLD then return hide(hrp, "Deflecting") end
+        else
+            _deflectSince = 0
+        end
+        local it = getEquippedItem()
+        if not weaponReady(it) then
+            local act = Rage._weaponRecovery(it)
+            if act == "swap" or act == "swap-wait" then return hide(hrp, "Swapping") end
+            return hide(hrp, "Reloading")
+        end
+        local hh = tgt.Character:FindFirstChild("HitboxHead") or tgt.Character:FindFirstChild("Head")
+        if not hh then return hide(hrp, "Hiding") end
+        if _hiding then
+            _hiding = false
+            local extra = 0
+            if Config.RageHideJitter ~= false then extra = math.random() * HIDE_JITTER_MAX end
+            _primeUntil = tick() + PRIME_S + extra
+        end
+        local hpos = hh.Position
+        if not isSanePos(hpos) then return hide(hrp, "Head voided") end
+        if holdFire then
+            _firing = false
+            State.RageFiring = false
+            State.RageVoidActive = true
+            State.RageStatus = "Protected"
+            displace(hrp, voidCFrame())
+            return
+        end
+        if Config.RagePolarParity and (tick() < _primeUntil) then
+            _firing = false
+            State.RageFiring = false
+            State.RageVoidActive = true
+            State.RageStatus = "Priming"
+            displace(hrp, voidCFrame())
+            return
+        end
+        State.RageFiring = true
+        State.RageVoidActive = false
+        _firing = true
+        State.RageStatus = "Attacking"
+        local melee = itemIsMelee(it)
+        if melee and Config.RageKnifeBot ~= false then
+            if meleeStrike(hpos, hh, tgt) then
+                State.RageStatus = "Melee"
+            else
+                State.RageStatus = "Melee (cooldown)"
+            end
+        else
+            local sent = polarFire(C.CFrame.Position, hpos, hh)
+            if sent == 0 then State.RageStatus = "PARKED, SENT NOTHING: " .. tostring(State.RageFireWhy) end
+        end
+    end
+
+    local function restoreHome(pin)
+        local ch = LP.Character
+        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+        if not hrp or not hrp.Parent then return end
+        local back = _preParkCF
+        _preParkCF = nil
+        pcall(function()
+            if back then hrp.CFrame = back end
+            if pin then
+                local hu = ch:FindFirstChildOfClass("Humanoid")
+                if hu and hu:GetState() == Enum.HumanoidStateType.Freefall and hu.FloorMaterial ~= Enum.Material.Air then
+                    hu:ChangeState(Enum.HumanoidStateType.Running)
+                end
+            end
+        end)
+    end
+
+    local function cameraAnchor()
+        if Config.RageCameraAnchor == false then return end
+        local back = _preParkCF
+        if back == nil then return end
+        local ch = LP.Character
+        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+        if not hrp or not hrp.Parent then return end
+        local delta = back.Position - hrp.Position
+        if not isSanePos(delta) then return end
+        C.CFrame = C.CFrame + delta
+    end
+
+    function Rage.enable()
+        Config.Rage = true
+        if _conn then return end
+        _firing = false
+        setPhysicsFlags(true)
+        _notified = nil
+        pcall(function() RunService:UnbindFromRenderStep(RENDER_NAME) end)
+        pcall(function() RunService:UnbindFromRenderStep(CAMERA_NAME) end)
+        RunService:BindToRenderStep(CAMERA_NAME, Enum.RenderPriority.Camera.Value + 5, function()
+            pcall(cameraAnchor)
+        end)
+        RunService:BindToRenderStep(RENDER_NAME, Enum.RenderPriority.First.Value - 1000, function()
+            if _firing and restoreMode() == "none" then return end
+            restoreHome(false)
+        end)
+        _stepConn = RunService.Stepped:Connect(function()
+            if _firing then
+                local pol = restoreMode()
+                if pol ~= "kicia" then return end
+            end
+            restoreHome(true)
+        end)
+        _charConn = LP.CharacterAdded:Connect(function()
+            _realCF = nil; _realChar = nil; _voidCF = nil; _target = nil
+            _notified = nil; _firing = false; _preParkCF = nil
+            _hiding, _primeUntil = true, 0
+        end)
+        _conn = RunService.Heartbeat:Connect(function(dt)
+            if not Config.Rage then Rage.disable(); return end
+            local ch = LP.Character
+            local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+            if not hrp or not hrp.Parent then return end
+            if _preParkCF == nil and isSanePos(hrp.Position) then
+                _realCF = hrp.CFrame
+                _realChar = ch
+            end
+            _inMatch = inMatch()
+            State.RageInMatch = _inMatch
+            if not _inMatch then
+                _target = nil; _firing = false
+                State.RageFiring = false
+                State.RageTarget = nil
+                State.RageStatus = "Lobby"
+                if not isSanePos(hrp.Position) then restoreHome(false) end
+                return
+            end
+            if not _realCF or _realChar ~= ch then
+                _firing = false
+                State.RageFiring = false
+                State.RageStatus = "Waiting"
+                return
+            end
+            local hum = ch:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health <= 0 then
+                _firing = false
+                State.RageFiring = false
+                State.RageVoidActive = false
+                State.RageStatus = "Dead"
+                if not isSanePos(hrp.Position) then restoreHome(false) end
+                return
+            end
+            polarTick(ch, hrp)
+        end)
+    end
+
+    function Rage.disable()
+        Config.Rage = false
+        setPhysicsFlags(false)
+        if _conn then _conn:Disconnect(); _conn = nil end
+        if _stepConn then _stepConn:Disconnect(); _stepConn = nil end
+        if _charConn then _charConn:Disconnect(); _charConn = nil end
+        pcall(function() RunService:UnbindFromRenderStep(RENDER_NAME) end)
+        pcall(function() RunService:UnbindFromRenderStep(CAMERA_NAME) end)
+        _firing = false
+        local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if hrp and hrp.Parent then
+            if _realCF and _realChar == LP.Character then
+                pcall(function() hrp.CFrame = CFrame.new(_realCF.Position) * hrp.CFrame.Rotation end)
+            elseif not isSanePos(hrp.Position) then
+                pcall(function() hrp.CFrame = CFrame.new(0, 100, 0) end)
+            end
+        end
+        _realCF = nil; _realChar = nil; _target = nil; _voidCF = nil; _notified = nil
+        State.RageFiring = false
+        State.RageVoidActive = false
+        State.RageTarget = nil
+        State.RageInMatch = false
+        State.RageStatus = "Idle"
+    end
+
+    function Rage.unload()
+        Rage.disable()
+    end
+    Rage._encodeShot = SharedEncode.encodeShot
+    Rage._buildShotFields = SharedEncode.buildShotFields
+end)()
+
+do
+    local RageTab = Window:AddTab('狂暴')
+    local CORE = RageTab:AddLeftGroupbox('核心')
+    CORE:AddToggle('Rage_Enabled', {
+        Text = '啟用狂暴', Default = false,
+        Callback = function(v) if v then Rage.enable() else Rage.disable() end end
+    }):AddKeyPicker('Rage_Key', {
+        Text = '狂暴', Default = 'None', Mode = 'Toggle', NoUI = true,
+        SyncToggleState = true, Callback = function(state) if state then Rage.enable() else Rage.disable() end end
+    })
+    CORE:AddToggle('Rage_SkipImmune', { Text = '對無敵目標停火', Default = true, Callback = function(v) Config.RageSkipImmune = v end })
+    CORE:AddToggle('Rage_HPPriority', { Text = '優先低血量目標', Default = true, Callback = function(v) Config.RageHPPriority = v end })
+    CORE:AddToggle('Rage_PrioritizeHackers', { Text = '優先作弊者', Default = true, Callback = function(v) Config.RagePrioritizeHackers = v end })
+    CORE:AddToggle('Rage_VisCheck', { Text = '可見性檢測', Default = false, Callback = function(v) Config.RageVisCheck = v end })
+    CORE:AddDivider('引擎')
+    CORE:AddDropdown('Rage_GumMode', { Values = {'off','lite','on'}, Default = 'on', Text = '口香糖模式', Callback = function(v) Config.RageGumMode = v end })
+    CORE:AddDropdown('Rage_VoidDepth', { Values = {'shallow','deep'}, Default = 'deep', Text = '躲藏深度', Callback = function(v) Config.RageVoidDepth = v end })
+    CORE:AddToggle('Rage_GatePoison', { Text = '閘門毒餌', Default = true, Callback = function(v) Config.RageGatePoison = v end })
+    CORE:AddToggle('Rage_PredictPrefire', { Text = '預測重新出現', Default = true, Callback = function(v) Config.RagePredictPrefire = v end })
+    CORE:AddToggle('Rage_IdentityDance', { Text = '身份舞步', Default = true, Callback = function(v) Config.RageIdentityDance = v end })
+    CORE:AddToggle('Rage_PhysicsFlags', { Text = '物理旗標', Default = true, Callback = function(v) Config.RagePhysicsFlags = v end })
+    CORE:AddToggle('Rage_CameraAnchor', { Text = '相機錨定', Default = true, Callback = function(v) Config.RageCameraAnchor = v end })
+    CORE:AddDivider('誘餌脈衝')
+    CORE:AddToggle('Rage_AttackTranslocate', { Text = '啟用誘餌脈衝', Default = true, Callback = function(v) Config.RageAttackTranslocate = v end })
+    CORE:AddSlider('Rage_BaitHeldMs', { Text = '持續時間 毫秒', Default = 300, Min = 0, Max = 1000, Rounding = 0, Callback = function(v) Config.RageBaitHeldMs = math.floor(v) end })
+    CORE:AddSlider('Rage_BaitRate', { Text = '每次爆發次數', Default = 2, Min = 1, Max = 6, Rounding = 0, Callback = function(v) Config.RageBaitRate = math.floor(v) end })
+    CORE:AddDropdown('Rage_RestoreMode', { Values = {'auto','none','render','kerp'}, Default = 'auto', Text = '傳送模式', Callback = function(v) Config.RageRestoreMode = v end })
+
+    local WEP = RageTab:AddRightGroupbox('武器')
+    WEP:AddDropdown('Rage_OnEmpty', { Values = {'Swap','Reload'}, Default = 'Swap', Text = '彈藥耗盡時', Callback = function(v) Config.RageOnEmpty = v end })
+    WEP:AddDropdown('Rage_PreferredSlot', { Values = {'Primary','Secondary','Melee'}, Default = 'Primary', Text = '偏好欄位', Callback = function(v) Config.RagePreferredSlot = v end })
+    WEP:AddSlider('Rage_Taps', { Text = '每次開火發數', Default = 6, Min = 1, Max = 8, Rounding = 0, Compact = true, Callback = function(v) Config.RageTaps = v end })
+    WEP:AddSlider('Rage_TapsPerFrame', { Text = '每幀發數', Default = 1, Min = 1, Max = 6, Rounding = 0, Compact = true, Callback = function(v) Config.RageTapsPerFrame = v end })
+    WEP:AddSlider('Rage_EyeMuzzleSep', { Text = '眼-口分離', Default = 0.07, Min = 0, Max = 1, Rounding = 2, Compact = true, Callback = function(v) Config.RageEyeMuzzleSep = v end })
+
+    local MELEE = RageTab:AddRightGroupbox('近戰')
+    MELEE:AddToggle('Rage_KnifeBot', { Text = '小刀機器人', Default = true, Callback = function(v) Config.RageKnifeBot = v end })
+    MELEE:AddToggle('Rage_ShieldBackstab', { Text = '防暴盾繞後', Default = true, Callback = function(v) Config.RageShieldBackstab = v end })
+    MELEE:AddToggle('Rage_KnifeBackstab', { Text = '強制小刀背刺', Default = true, Callback = function(v) Config.RageKnifeBackstab = v end })
+    MELEE:AddToggle('Rage_GumVoidFire', { Text = '口香糖虛空開火', Default = true, Callback = function(v) Config.RageGumVoidFire = v end })
+end
+
+Library:Notify('狂暴載入完成', 4)
+print("[v12.0] 狂暴完整版載入完成")
