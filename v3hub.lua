@@ -1,6 +1,6 @@
 -- ============================================================
--- LuaHook v12.0 — 重構版
--- 第一段：反封鎖 + 框架 + 工具 + Gun Mods + 靜默自瞄 + 自瞄 + 觸發
+-- LuaHook v12.0 — 完整版
+-- 第一段：反封鎖 + 框架 + Gun Mods + 靜默自瞄 + 自瞄 + 觸發
 -- ============================================================
 
 local hookmetamethod    = hookmetamethod
@@ -36,7 +36,6 @@ local CollectionService = game:GetService("CollectionService")
 local Lighting          = game:GetService("Lighting")
 local VirtualInputMgr   = game:GetService("VirtualInputManager")
 local SoundService      = game:GetService("SoundService")
-local TweenService      = game:GetService("TweenService")
 
 W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     C = W.CurrentCamera
@@ -470,9 +469,9 @@ Config = {
     ESPBoxScale = 1, ESPBox = true, ESPBoxThickness = 1,
     ESPName = true, ESPDistance = true, ESPHealth = true,
     ESPNameMode = "Display",
-    ESPBoxColor = Color3.fromRGB(0, 229, 255),
-    ESPNameColor = Color3.fromRGB(243, 246, 250),
-    ESPInfoColor = Color3.fromRGB(174, 185, 197),
+    ESPBoxColor = Color3.fromRGB(255, 255, 255),
+    ESPNameColor = Color3.fromRGB(255, 255, 255),
+    ESPInfoColor = Color3.fromRGB(255, 255, 255),
     ESPHealthColor = Color3.fromRGB(61, 224, 122),
     Rage = false,
     RageMode = "Polar",
@@ -495,21 +494,10 @@ Config = {
     RageCombatOrbitHeight = 8,
     RageCombatOrbitJitter = true,
     RagePBEyeUp = 3,
-    GVUnlockAll = false,
-    GameVisuals = false,
-    Weather = false,
-    WeatherShootingStars = false,
-    WeatherStarRate = 1,
-    SkyboxPreset = "Off",
-    SkyboxHideCelestial = false,
-    HUDWatermark = true,
-    FXHitMarker = true,
-    FXDamageNumbers = true,
-    FXKillBanner = true,
-    FXKillFeed = true,
-    FXHeadshotSpark = true,
-    FXHitFlash = true,
-    FXLowHPVignette = true,
+    AutoQueueEnabled = false,
+    AutoQueueMode = "1v1",
+    AutoQueueDelay = 2,
+    AutoQueueRanked = false,
 }
 
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
@@ -533,10 +521,6 @@ State = {
     OrbitAngle = 0,
     OrbitVantage = nil,
     OrbitVantageUntil = 0,
-    AutoQueueStatus = "-",
-    AutoQueueEnabled = false,
-    AutoQueueMode = "1v1",
-    AutoQueueRanked = false,
 }
 
 -- ============ Gun Mods ============
@@ -653,7 +637,7 @@ local function updateMuzzleFlash()
     end
 end
 
--- ============ 靜默自瞄 ============
+-- ============ 静默自瞄 ============
 local function isValidTargetSilent(player)
     if not player or player == LP then return false end
     if Config.TeamCheck and isTeammate(player) then return false end
@@ -917,7 +901,7 @@ local Aimbot = {}
         local curYaw, curPit = yawOf(look), pitchOf(look)
         if _haveCam and not _calOff then
             _gx, _nx = calibrate(wrapPi(curYaw - _lyaw), _sx, _gx, _nx, _sdx)
-            _gy, _ny = calibrate(curPit - _lpit), _sy, _gy, _ny, _sdy)
+            _gy, _ny = calibrate(curPit - _lpit, _sy, _gy, _ny, _sdy)
         end
         _lyaw, _lpit, _haveCam = curYaw, curPit, true
         _sx, _sy = 0, 0
@@ -1055,7 +1039,7 @@ local Aimbot = {}
     function Aimbot.unload() Aimbot.disable() end
 end)()
 
--- ============ 觸發 ============
+-- ============ 触发 ============
 local Trigger = {}
 do
     local _bound = false
@@ -1126,9 +1110,9 @@ do
     function Trigger.unload() Trigger.disable() end
 end
 
-print("[v12.0] 第一段載入完成")
+print("[v12.0] 第一段载入完成")
 -- ============================================================
--- 第二段：ESP（霓虹）+ Rage 完整版（Polar / Orbit）
+-- 第二段：ESP + Rage + 自动排队 + GUI
 -- ============================================================
 
 local ESP = {}
@@ -1141,7 +1125,7 @@ local ESP = {}
     local _ctx = {}
     local BLACK = Color3.new(0, 0, 0)
     local WHITE = Color3.new(1, 1, 1)
-    local NEON  = Color3.fromRGB(0, 229, 255)
+    local INK = Color3.fromRGB(4, 6, 10)
     local HPBG = Color3.fromRGB(11, 15, 22)
     local HP_W = 3
     local HP_GAP = 5
@@ -1210,7 +1194,9 @@ local ESP = {}
         t.ZIndex = z or 3
         t.TextColor3 = WHITE
         local st = Instance.new("UIStroke")
-        st.Color = BLACK; st.Thickness = 1; st.Transparency = 0
+        st.Color = BLACK
+        st.Thickness = 1
+        st.Transparency = 0
         st.Parent = t
         t.Parent = parent
         return t
@@ -1222,18 +1208,15 @@ local ESP = {}
         f.Size = UDim2.fromScale(1, 1)
         local s = Instance.new("UIStroke")
         s.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-        s.Color = colour; s.Thickness = thick; s.Transparency = 0
+        s.Color = colour
+        s.Thickness = thick
+        s.Transparency = 0
         s.Parent = f
         return f, s
     end
-    local function mkCorner(parent, radius)
-        local c = Instance.new("UICorner")
-        c.CornerRadius = UDim.new(0, radius or 0)
-        c.Parent = parent
-        return c
-    end
     local function buildTree(o)
-        local g = espGui(); if not g then return nil end
+        local g = espGui()
+        if not g then return nil end
         local u = {}
         local root = mkFrame(g, 2)
         root.Visible = false
@@ -1241,23 +1224,9 @@ local ESP = {}
         u.root = root
         u.box = mkFrame(root, 3)
         u.box.Size = UDim2.fromScale(1, 1)
-        local rMid, sMid = mkRing(u.box, 5, Config.ESPBoxColor or NEON, 1)
+        local rMid, sMid = mkRing(u.box, 5, WHITE, 1)
         u.boxStroke = sMid
-        mkCorner(u.box, 2)
         u.box.Visible = false
-        local glow = mkFrame(root, 2)
-        glow.Size = UDim2.fromScale(1, 1)
-        glow.AnchorPoint = Vector2.new(0.5, 0.5)
-        glow.Position = UDim2.fromScale(0.5, 0.5)
-        local gs = Instance.new("UIStroke")
-        gs.Color = Config.ESPBoxColor or NEON
-        gs.Thickness = 3
-        gs.Transparency = 0.85
-        gs.Parent = glow
-        mkCorner(glow, 3)
-        u.glow = glow
-        u.glowStroke = gs
-        glow.Visible = false
         local hp = mkFrame(root, 4)
         hp.AnchorPoint = Vector2.new(1, 0)
         hp.Position = UDim2.new(0, -HP_GAP, 0, 0)
@@ -1265,7 +1234,6 @@ local ESP = {}
         hp.BackgroundTransparency = 0
         hp.BackgroundColor3 = HPBG
         hp.Visible = false
-        mkCorner(hp, 2)
         u.hp = hp
         u.hpFill = mkFrame(hp, 6)
         u.hpFill.BackgroundTransparency = 0
@@ -1273,7 +1241,6 @@ local ESP = {}
         u.hpFill.AnchorPoint = Vector2.new(0, 1)
         u.hpFill.Position = UDim2.fromScale(0, 1)
         u.hpFill.Size = UDim2.fromScale(1, 1)
-        mkCorner(u.hpFill, 2)
         u.name = mkLabel(root, 7)
         u.name.AnchorPoint = Vector2.new(0.5, 1)
         u.name.Position = UDim2.new(0.5, 0, 0, -PAD)
@@ -1285,7 +1252,8 @@ local ESP = {}
         return u
     end
     local function cleanESP(p)
-        local o = State.ESPObjects[p]; if not o then return end
+        local o = State.ESPObjects[p]
+        if not o then return end
         if o.ui and o.ui.root then pcall(function() o.ui.root:Destroy() end) end
         _bboxCache[p] = nil
         _bboxFrameN[p] = nil
@@ -1294,8 +1262,10 @@ local ESP = {}
     local function buildESP(player)
         if player == LP then return end
         cleanESP(player)
-        local char = player.Character; if not char then return end
-        local root = char:FindFirstChild("HumanoidRootPart"); if not root then return end
+        local char = player.Character
+        if not char then return end
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
         local o = { root = root }
         o.ui = buildTree(o)
         State.ESPObjects[player] = o
@@ -1355,25 +1325,12 @@ local ESP = {}
             local hp, mh, frac
             pcall(function() hp, mh = getHealth(player) end)
             if hp ~= nil then frac = math.clamp((mh or 0) > 0 and hp / mh or 0, 0, 1) end
-            local distRatio = math.clamp(dist / 500, 0, 1)
-            local pulse = 0.85 + 0.15 * math.sin(tick() * 3 + (player.UserId % 100))
-            local hueShift = (tick() * 0.08 + (player.UserId % 360) / 360) % 1
-            local dynamicColor = Color3.fromHSV(hueShift, 0.85, 1)
-            local boxColor = Config.ESPBoxColor or NEON
-            if Config.ESPRainbowBox then boxColor = dynamicColor end
             if Config.ESPBox then
                 u.box.Visible = true
-                u.boxStroke.Color = boxColor
+                u.boxStroke.Color = Config.ESPBoxColor
                 u.boxStroke.Thickness = Config.ESPBoxThickness
-                u.glow.Visible = Config.ESPBoxGlow == true
-                if u.glowStroke then
-                    u.glowStroke.Color = boxColor
-                    u.glowStroke.Transparency = 0.75 + 0.15 * pulse
-                    u.glowStroke.Thickness = 3 + distRatio * 2
-                end
             else
                 u.box.Visible = false
-                u.glow.Visible = false
             end
             if Config.ESPHealth then
                 u.hp.Visible = true
@@ -1445,13 +1402,15 @@ local ESP = {}
         for _, p in ipairs(getSafePlayers()) do
             if p ~= LP then
                 p.CharacterAdded:Connect(function()
-                    task.wait(0.5); if Config.ESP then buildESP(p) end
+                    task.wait(0.5)
+                    if Config.ESP then buildESP(p) end
                 end)
             end
         end
         Players.PlayerAdded:Connect(function(p)
             p.CharacterAdded:Connect(function()
-                task.wait(0.5); if Config.ESP then buildESP(p) end
+                task.wait(0.5)
+                if Config.ESP then buildESP(p) end
             end)
         end)
         Players.PlayerRemoving:Connect(function(p) cleanESP(p) end)
@@ -1465,10 +1424,9 @@ end)()
 pcall(ESP.init)
 if Config.ESP then pcall(ESP.enable) end
 
--- ============ Rage 完整版（Polar + Orbit）============
+-- ============ Rage ============
 local Rage = {}
 ;(function()
-    local function bump(p) State.RageCharTokens[p] = (State.RageCharTokens[p] or 0) + 1 end
     local function hasLOS(fromPos, toPos, ignore)
         local rp = RaycastParams.new()
         rp.FilterType = Enum.RaycastFilterType.Exclude
@@ -1768,7 +1726,8 @@ local Rage = {}
         local kf = killFloor()
         local dist = 3.0
         local ignore = { tgt.Character, LP.Character }
-        local rp = RaycastParams.new(); rp.FilterType = Enum.RaycastFilterType.Exclude
+        local rp = RaycastParams.new()
+        rp.FilterType = Enum.RaycastFilterType.Exclude
         rp.FilterDescendantsInstances = ignore
         local flank = anchor + inv * dist
         local wr = W:Raycast(anchor, inv * dist, rp)
@@ -1782,7 +1741,6 @@ local Rage = {}
         local kf = killFloor()
         if not tgt or not tgt.Character then return orbitVoid(hrp, "No target") end
         local tc = tgt.Character
-        local thrp = tc:FindFirstChild("HumanoidRootPart")
         local hh = tc:FindFirstChild("HitboxHead") or tc:FindFirstChild("Head")
         if not hh or not isSanePos(hh.Position) then return orbitVoid(hrp, "Hiding") end
         if not weaponReady(getEquippedItem()) then
@@ -1810,7 +1768,9 @@ local Rage = {}
                     State.OrbitVantage = v
                     State.OrbitVantageUntil = tick() + (Config.RageOrbitDwell or 0.09)
                     held = v
-                else held = nil end
+                else
+                    held = nil
+                end
             end
             if held then vantage = held; status = "Orbit" end
         end
@@ -1848,24 +1808,7 @@ local Rage = {}
         end)
     end
 
-    function Rage.init()
-        for _, p in ipairs(getSafePlayers()) do bump(p) end
-        Players.PlayerAdded:Connect(function(p)
-            bump(p)
-            p.CharacterAdded:Connect(function() bump(p) end)
-        end)
-        for _, p in ipairs(getSafePlayers()) do
-            p.CharacterAdded:Connect(function() bump(p) end)
-        end
-        Players.PlayerRemoving:Connect(function(p) State.RageCharTokens[p] = nil end)
-        LP.CharacterAdded:Connect(function()
-            bump(LP)
-            _target = nil
-            _preParkCF = nil
-            State.RageTarget = nil
-        end)
-        bump(LP)
-    end
+    function Rage.init() end
 
     function Rage.enable()
         Config.Rage = true
@@ -1881,7 +1824,8 @@ local Rage = {}
             local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
             if not hrp or not hrp.Parent then return end
             if not inMatch() then
-                _target = nil; _firing = false
+                _target = nil
+                _firing = false
                 State.RageFiring = false
                 State.RageTarget = nil
                 State.RageStatus = "Lobby"
@@ -1915,7 +1859,8 @@ local Rage = {}
         pcall(function() RunService:UnbindFromRenderStep(RENDER_NAME) end)
         _firing = false
         restoreHome()
-        _target = nil; _voidCF = nil
+        _target = nil
+        _voidCF = nil
         State.RageFiring = false
         State.RageVoidActive = false
         State.RageTarget = nil
@@ -1930,1228 +1875,46 @@ local Rage = {}
     Rage._buildShotFields = SharedEncode.buildShotFields
 end)()
 
-print("[v12.0] 第二段載入完成")
--- ============================================================
--- 第三段：GUI（Linoria 霓虹版）+ HUD + 外觀 + 天氣 + AutoQueue
--- ============================================================
-
--- ============ AutoQueue（v11.0 路徑）============
-local AutoQueue = {}
-do
-    local RS_Q = game:GetService("ReplicatedStorage")
-    local _thread = nil
-
-    local function findJoinQueue()
-        local remotes = RS_Q:FindFirstChild("Remotes")
-        if not remotes then return nil end
-        local mm = remotes:FindFirstChild("Matchmaking")
-        if not mm then return nil end
-        local jq = mm:FindFirstChild("JoinQueue")
-        if jq and (jq:IsA("RemoteFunction") or jq:IsA("RemoteEvent")) then
-            return jq
-        end
-        return nil
-    end
-
-    local _JoinQueue = findJoinQueue()
-
-    function AutoQueue.join(mode, ranked)
-        if not _JoinQueue then _JoinQueue = findJoinQueue() end
-        if not _JoinQueue then
-            State.AutoQueueStatus = "JoinQueue not found"
-            return false, "no remote"
-        end
-        local ok, err = pcall(function()
-            if ranked then
-                _JoinQueue:InvokeServer(mode, true)
-            else
-                _JoinQueue:InvokeServer(mode)
-            end
-        end)
-        if ok then
-            State.AutoQueueStatus = "Joined (" .. tostring(mode) .. ")"
-            return true
-        end
-        local msg = tostring(err)
-        if msg:lower():find("already in queue") then
-            State.AutoQueueStatus = "Already in queue"
-            return true
-        end
-        State.AutoQueueStatus = "Failed"
-        return false, msg
-    end
-
-    local function loop()
+-- ============ 自动排队 ============
+local autoQueueThread = nil
+local function autoQueueStop()
+    if autoQueueThread then autoQueueThread = nil end
+end
+local function autoQueueStart()
+    autoQueueStop()
+    autoQueueThread = task.spawn(function()
         task.wait(Config.AutoQueueDelay or 2)
-        while State.AutoQueueEnabled do
-            local ok = AutoQueue.join(State.AutoQueueMode, State.AutoQueueRanked)
-            if not ok then
-                State.AutoQueueEnabled = false
+        while Config.AutoQueueEnabled and task.wait(1) do
+            local success, result = pcall(function()
+                local storage = game:GetService("ReplicatedStorage")
+                local remotes = storage:WaitForChild("Remotes")
+                local matchmaking = remotes:WaitForChild("Matchmaking")
+                local joinqueue = matchmaking:WaitForChild("JoinQueue")
+                if Config.AutoQueueRanked then
+                    return joinqueue:InvokeServer(Config.AutoQueueMode or "1v1", true)
+                else
+                    return joinqueue:InvokeServer(Config.AutoQueueMode or "1v1")
+                end
+            end)
+            if not success and not string.find(tostring(result):lower(), "already in queue") then
+                autoQueueThread = nil
                 break
             end
-            task.wait(2)
         end
-        _thread = nil
-    end
-
-    function AutoQueue.start(mode, ranked, delay)
-        State.AutoQueueMode = mode or State.AutoQueueMode or "1v1"
-        State.AutoQueueRanked = ranked == true
-        Config.AutoQueueDelay = delay or Config.AutoQueueDelay or 2
-        State.AutoQueueEnabled = true
-        if _thread then return end
-        _thread = task.spawn(loop)
-    end
-
-    function AutoQueue.stop()
-        State.AutoQueueEnabled = false
-        State.AutoQueueStatus = "Stopped"
-    end
+    end)
 end
-
--- ============ HUD / 命中回饋（霓虹版）============
-local HUDPlus = {}
-do
-    local SoundService = game:GetService("SoundService")
-    local StatsService = game:GetService("Stats")
-    local C_GREY   = Color3.fromRGB(200, 200, 200)
-    local C_AMBER  = Color3.fromRGB(255, 170, 60)
-    local C_ORANGE = Color3.fromRGB(255, 120, 30)
-    local C_RED    = Color3.fromRGB(255, 59, 78)
-    local C_SCREENRED = Color3.fromRGB(194, 30, 47)
-    local C_BLACK  = Color3.new(0, 0, 0)
-    local C_NEON   = Color3.fromRGB(0, 229, 255)
-    local C_GOLD   = Color3.fromRGB(255, 194, 75)
-    local C_FILL   = Color3.fromRGB(13, 18, 25)
-    local C_TEXT2  = Color3.fromRGB(174, 185, 197)
-    local WHITE    = Color3.new(1, 1, 1)
-    local _started = false
-    local _updConn, _gui = nil, nil
-    local _hmLines, _hmLinesBlk = nil, nil
-    local _hm = { on = false, t0 = 0, pop = 0, color = WHITE }
-    local _dnPool, _dnActive, _dnByPlr = nil, {}, {}
-    local _kbL1, _kbL2, _kbRing = nil, nil, nil
-    local _kb = { on = false, t0 = 0, streak = 0, lastKillT = 0, line1 = "", line2 = "" }
-    local _kfPool, _kfItems = nil, {}
-    local _hsLines, _hsLinesBlk = nil, nil
-    local _hs = { on = false, t0 = 0, pos = nil }
-    local _flashFrame = nil
-    local _hf = { on = false, t0 = 0 }
-    local _vgFrames = nil
-    local _vgHP, _vgLastPoll = 1, 0
-    local _hcConn, _charConn, _lastHP = nil, nil, nil
-    local _wmBg, _wmAccent, _wmText = nil, nil, nil
-    local _wm = { fps = 60, ping = 0, pingT = 0, str = "", strT = 0, bw = nil, lastT = tick() }
-    local _sessKills, _sessT0 = 0, tick()
-
-    local function ensureGui()
-        if _gui and _gui.Parent then return _gui end
-        local g = Instance.new("ScreenGui")
-        g.Name = "_vs_fx_" .. tostring(math.random(1e4, 1e5))
-        g.IgnoreGuiInset = true
-        g.ResetOnSpawn = false
-        g.DisplayOrder = 999
-        local ok = pcall(function() g.Parent = (gethui and gethui()) or game:GetService("CoreGui") end)
-        if not ok or not g.Parent then
-            pcall(function() g.Parent = LP:FindFirstChildOfClass("PlayerGui") end)
-        end
-        _gui = g
-        return g
-    end
-
-    local function allocate()
-        if _dnPool then return end
-        local g = ensureGui()
-        local fr = Instance.new("Frame")
-        fr.BackgroundColor3 = C_SCREENRED; fr.BackgroundTransparency = 1
-        fr.BorderSizePixel = 0; fr.Size = UDim2.new(1, 0, 1, 0); fr.Visible = false
-        fr.ZIndex = 1; fr.Parent = g
-        _flashFrame = fr
-        _vgFrames = {}
-        local SIDES = {
-            { size = UDim2.new(1, 0, 0.16, 0),  pos = UDim2.new(0, 0, 0, 0),     rot = 90  },
-            { size = UDim2.new(1, 0, 0.16, 0),  pos = UDim2.new(0, 0, 0.84, 0),  rot = 270 },
-            { size = UDim2.new(0.12, 0, 1, 0),  pos = UDim2.new(0, 0, 0, 0),     rot = 0   },
-            { size = UDim2.new(0.12, 0, 1, 0),  pos = UDim2.new(0.88, 0, 0, 0),  rot = 180 },
-        }
-        for i, s in ipairs(SIDES) do
-            local f = Instance.new("Frame")
-            f.BackgroundColor3 = C_SCREENRED; f.BackgroundTransparency = 1
-            f.BorderSizePixel = 0; f.Size = s.size; f.Position = s.pos; f.Visible = false
-            f.ZIndex = 2
-            local grad = Instance.new("UIGradient")
-            grad.Rotation = s.rot
-            grad.Transparency = NumberSequence.new(0, 1)
-            grad.Parent = f
-            f.Parent = g
-            _vgFrames[i] = f
-        end
-        _hmLinesBlk = {}
-        for i = 1, 4 do
-            local l = Instance.new("Frame")
-            l.BackgroundColor3 = C_BLACK; l.BorderSizePixel = 0
-            l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
-            l.Parent = g
-            _hmLinesBlk[i] = l
-        end
-        _hmLines = {}
-        for i = 1, 4 do
-            local l = Instance.new("Frame")
-            l.BackgroundColor3 = WHITE; l.BorderSizePixel = 0
-            l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
-            l.Parent = g
-            _hmLines[i] = l
-        end
-        _dnPool = {}
-        for i = 1, 24 do
-            local t = Instance.new("TextLabel")
-            t.BackgroundTransparency = 1
-            t.TextColor3 = WHITE
-            t.Font = Enum.Font.Code
-            t.TextSize = 14
-            t.TextStrokeTransparency = 0
-            t.TextStrokeColor3 = C_BLACK
-            t.AnchorPoint = Vector2.new(0.5, 0.5)
-            t.Text = ""
-            t.Visible = false
-            t.Size = UDim2.fromOffset(200, 20)
-            t.Parent = g
-            _dnPool[i] = t
-        end
-        _kbL1 = Instance.new("TextLabel")
-        _kbL1.BackgroundTransparency = 1
-        _kbL1.TextColor3 = C_NEON
-        _kbL1.Font = Enum.Font.Code
-        _kbL1.TextSize = 12
-        _kbL1.TextStrokeTransparency = 0
-        _kbL1.TextStrokeColor3 = C_BLACK
-        _kbL1.AnchorPoint = Vector2.new(0.5, 0.5)
-        _kbL1.Text = ""
-        _kbL1.Visible = false
-        _kbL1.Size = UDim2.fromOffset(300, 20)
-        _kbL1.Parent = g
-        _kbL2 = Instance.new("TextLabel")
-        _kbL2.BackgroundTransparency = 1
-        _kbL2.TextColor3 = C_GOLD
-        _kbL2.Font = Enum.Font.Code
-        _kbL2.TextSize = 22
-        _kbL2.TextStrokeTransparency = 0
-        _kbL2.TextStrokeColor3 = C_BLACK
-        _kbL2.AnchorPoint = Vector2.new(0.5, 0.5)
-        _kbL2.Text = ""
-        _kbL2.Visible = false
-        _kbL2.Size = UDim2.fromOffset(300, 30)
-        _kbL2.Parent = g
-        _kbRing = Instance.new("Frame")
-        _kbRing.BackgroundTransparency = 1
-        _kbRing.AnchorPoint = Vector2.new(0.5, 0.5)
-        _kbRing.Position = UDim2.new(0.5, 0, 0.5, 0)
-        _kbRing.Size = UDim2.fromOffset(40, 40)
-        _kbRing.Visible = false
-        _kbRing.Parent = g
-        local uc = Instance.new("UICorner"); uc.CornerRadius = UDim.new(1, 0); uc.Parent = _kbRing
-        local ust = Instance.new("UIStroke"); ust.Thickness = 2; ust.Color = C_NEON; ust.Parent = _kbRing
-        _kfPool = {}
-        for i = 1, 5 do
-            local t = Instance.new("TextLabel")
-            t.BackgroundTransparency = 1
-            t.TextColor3 = WHITE
-            t.Font = Enum.Font.Code
-            t.TextSize = 13
-            t.TextStrokeTransparency = 0
-            t.TextStrokeColor3 = C_BLACK
-            t.Text = ""
-            t.TextXAlignment = Enum.TextXAlignment.Right
-            t.AutomaticSize = Enum.AutomaticSize.X
-            t.Size = UDim2.fromOffset(0, 18)
-            t.Visible = false
-            t.Parent = g
-            _kfPool[i] = t
-        end
-        _hsLinesBlk = {}
-        for i = 1, 6 do
-            local l = Instance.new("Frame")
-            l.BackgroundColor3 = C_BLACK; l.BorderSizePixel = 0
-            l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
-            l.Parent = g
-            _hsLinesBlk[i] = l
-        end
-        _hsLines = {}
-        for i = 1, 6 do
-            local l = Instance.new("Frame")
-            l.BackgroundColor3 = C_NEON; l.BorderSizePixel = 0
-            l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
-            l.Parent = g
-            _hsLines[i] = l
-        end
-        _wmBg = Instance.new("Frame")
-        _wmBg.BackgroundColor3 = C_FILL
-        _wmBg.BorderSizePixel = 0
-        _wmBg.Position = UDim2.fromOffset(16, 16)
-        _wmBg.Size = UDim2.fromOffset(60, 24)
-        _wmBg.Visible = false
-        _wmBg.Parent = g
-        local wmCorner = Instance.new("UICorner"); wmCorner.CornerRadius = UDim.new(0, 4); wmCorner.Parent = _wmBg
-        _wmAccent = Instance.new("Frame")
-        _wmAccent.BackgroundColor3 = C_NEON
-        _wmAccent.BorderSizePixel = 0
-        _wmAccent.Size = UDim2.new(0, 3, 1, 0)
-        _wmAccent.Position = UDim2.new(0, 0, 0, 0)
-        _wmAccent.Parent = _wmBg
-        local ac = Instance.new("UICorner"); ac.CornerRadius = UDim.new(0, 2); ac.Parent = _wmAccent
-        _wmText = Instance.new("TextLabel")
-        _wmText.BackgroundTransparency = 1
-        _wmText.TextColor3 = WHITE
-        _wmText.Font = Enum.Font.GothamBold
-        _wmText.TextSize = 13
-        _wmText.TextStrokeTransparency = 0.5
-        _wmText.TextStrokeColor3 = C_BLACK
-        _wmText.Text = "LuaHook"
-        _wmText.TextXAlignment = Enum.TextXAlignment.Left
-        _wmText.AutomaticSize = Enum.AutomaticSize.X
-        _wmText.Size = UDim2.fromOffset(0, 18)
-        _wmText.Position = UDim2.fromOffset(26, 19)
-        _wmText.Visible = false
-        _wmText.Parent = g
-        _wm.stats = Instance.new("TextLabel")
-        _wm.stats.BackgroundTransparency = 1
-        _wm.stats.TextColor3 = C_TEXT2
-        _wm.stats.Font = Enum.Font.Code
-        _wm.stats.TextSize = 12
-        _wm.stats.TextStrokeTransparency = 0.5
-        _wm.stats.TextStrokeColor3 = C_BLACK
-        _wm.stats.Text = ""
-        _wm.stats.TextXAlignment = Enum.TextXAlignment.Left
-        _wm.stats.AutomaticSize = Enum.AutomaticSize.X
-        _wm.stats.Size = UDim2.fromOffset(0, 18)
-        _wm.stats.Position = UDim2.fromOffset(100, 22)
-        _wm.stats.Visible = false
-        _wm.stats.Parent = g
-    end
-
-    local function triggerHitMarker(crit, lethal)
-        if not (_hmLines and _hmLines[1]) then return end
-        local now = tick()
-        if _hm.on and (now - _hm.t0) < 0.18 then
-            _hm.pop = math.min(_hm.pop + 1, 3)
-        else
-            _hm.pop = 0
-        end
-        _hm.on = true; _hm.t0 = now
-        _hm.color = lethal and C_RED or (crit and C_GOLD or WHITE)
-    end
-
-    local function pushDamageNumber(p, dmg, crit, lethal, hitPos)
-        if not (_dnPool and hitPos) then return end
-        local now = tick()
-        local e = _dnByPlr[p]
-        if e and e.alive and (now - e.lastT) <= 0.9 then
-            e.total = e.total + dmg
-            e.t0 = now; e.lastT = now; e.popT = now; e.pos = hitPos
-            e.crit = e.crit or crit; e.lethal = e.lethal or lethal
-            return
-        end
-        local d
-        for _, cand in ipairs(_dnPool) do
-            local used = false
-            for _, active in ipairs(_dnActive) do
-                if active.d == cand then used = true break end
-            end
-            if not used then d = cand break end
-        end
-        if not d then return end
-        e = { d = d, p = p, total = dmg, pos = hitPos, t0 = now, lastT = now, popT = now,
-              drift = math.random(-8, 8), crit = crit, lethal = lethal, alive = true }
-        _dnByPlr[p] = e
-        table.insert(_dnActive, e)
-    end
-
-    local function dnRamp(total)
-        if total <= 25 then return C_GREY:Lerp(C_AMBER, total / 25) end
-        return C_AMBER:Lerp(C_ORANGE, (total - 25) / 25)
-    end
-
-    local KB_STREAK = { [2] = "DOUBLE", [3] = "TRIPLE", [4] = "QUAD" }
-    local function triggerKillBanner(p)
-        if not (_kbL1 and _kbL2) then return end
-        local now = tick()
-        if (now - _kb.lastKillT) <= 4 then _kb.streak = _kb.streak + 1 else _kb.streak = 1 end
-        _kb.lastKillT = now
-        _kb.on = true; _kb.t0 = now
-        local label = "ELIMINATED"
-        if _kb.streak >= 5 then label = _kb.streak .. "x"
-        elseif _kb.streak >= 2 then label = KB_STREAK[_kb.streak] end
-        _kb.line1 = (label:gsub("(.)", "%1 ")):sub(1, -2)
-        _kb.line2 = tostring(p.DisplayName or p.Name)
-    end
-
-    local function pushKillFeed(p, crit)
-        if not _kfPool then return end
-        table.insert(_kfItems, 1, { text = "You  ·  " .. tostring(p.DisplayName or p.Name), t0 = tick(), crit = crit and true or false })
-        while #_kfItems > 5 do table.remove(_kfItems) end
-    end
-
-    local function triggerSpark(hitPos)
-        if not (_hsLines and hitPos) then return end
-        _hs.on = true; _hs.t0 = tick(); _hs.pos = hitPos
-    end
-
-    local function triggerFlash()
-        if not _flashFrame then return end
-        _hf.on = true; _hf.t0 = tick()
-    end
-
-    local DIAG = { Vector2.new(1, 1), Vector2.new(-1, 1), Vector2.new(1, -1), Vector2.new(-1, -1) }
-    local INV_SQ2 = 0.70710678
-
-    local function hideMarker()
-        _hm.on = false
-        for _, l in ipairs(_hmLines) do if l then l.Visible = false end end
-        if _hmLinesBlk then for _, l in ipairs(_hmLinesBlk) do if l then l.Visible = false end end end
-    end
-
-    local _fxThrT = 0
-    local function update()
-        local now = tick()
-        if now - _fxThrT < 0.0083 then return end
-        _fxThrT = now
-        local vp = C.ViewportSize
-        local cx, cy = vp.X * 0.5, vp.Y * 0.5
-
-        if _hm.on and _hmLines then
-            local a = now - _hm.t0
-            if a >= 0.18 then
-                hideMarker()
-            else
-                local snap = 1 - (1 - math.clamp(a / 0.07, 0, 1)) ^ 2
-                local gap = 5
-                local len = 8 * snap + _hm.pop
-                local th  = 2
-                local tr  = 1 - math.clamp((a - 0.09) / 0.09, 0, 1)
-                for i, l in ipairs(_hmLines) do
-                    if l then
-                        local nx, ny = DIAG[i].X * INV_SQ2, DIAG[i].Y * INV_SQ2
-                        local from = Vector2.new(cx + nx * gap, cy + ny * gap)
-                        local to   = Vector2.new(cx + nx * (gap + len), cy + ny * (gap + len))
-                        local w = math.abs(to.X - from.X)
-                        l.Position = UDim2.fromOffset(math.floor(math.min(from.X, to.X)), math.floor(math.min(from.Y, to.Y)))
-                        l.Size = UDim2.fromOffset(math.max(w, 1), th)
-                        l.BackgroundColor3 = _hm.color
-                        l.BackgroundTransparency = tr
-                        l.Visible = true
-                        local lb = _hmLinesBlk and _hmLinesBlk[i]
-                        if lb then
-                            lb.Position = UDim2.fromOffset(math.floor(math.min(from.X, to.X)) - 1, math.floor(math.min(from.Y, to.Y)) - 1)
-                            lb.Size = UDim2.fromOffset(math.max(w + 2, 1), th + 2)
-                            lb.BackgroundTransparency = tr
-                            lb.Visible = true
-                        end
-                    end
-                end
-            end
-        end
-
-        if _dnActive[1] then
-            for i = #_dnActive, 1, -1 do
-                local e = _dnActive[i]
-                local a = (now - e.t0) / 0.7
-                if a >= 1 then
-                    if e.d then e.d.Visible = false end
-                    e.alive = false
-                    if _dnByPlr[e.p] == e then _dnByPlr[e.p] = nil end
-                    table.remove(_dnActive, i)
-                elseif e.d then
-                    local sp = C:WorldToViewportPoint(e.pos)
-                    if sp.Z <= 0 then
-                        e.d.Visible = false
-                    else
-                        local d = e.d
-                        local ease = 1 - (1 - a) * (1 - a)
-                        local pop  = 1 + 0.25 * (1 - math.clamp((now - e.popT) / 0.12, 0, 1))
-                        d.TextSize = math.floor((14 + math.clamp(e.total / 50, 0, 1) * 8) * pop + 0.5)
-                        d.Text = tostring(math.floor(e.total + 0.5))
-                        if e.crit or e.lethal then d.TextColor3 = C_GOLD
-                        else d.TextColor3 = dnRamp(e.total) end
-                        d.Position = UDim2.fromOffset(math.floor(sp.X + e.drift * a), math.floor(sp.Y - 42 * ease))
-                        d.TextTransparency = a < 0.6 and 0 or (a - 0.6) / 0.4
-                        d.Visible = true
-                    end
-                end
-            end
-        end
-
-        if _kb.on then
-            local a = now - _kb.t0
-            if a >= 1.17 then
-                _kb.on = false
-                if _kbL1 then _kbL1.Visible = false end
-                if _kbL2 then _kbL2.Visible = false end
-                if _kbRing then _kbRing.Visible = false end
-            else
-                local y = cy - 140
-                local scale, tr = 1, 1
-                if a < 0.09 then scale = 0.6 + 0.4 * (a / 0.09)
-                elseif a > 0.79 then tr = 1 - (a - 0.79) / 0.38 end
-                if _kbL1 then
-                    _kbL1.Text = _kb.line1
-                    _kbL1.TextSize = math.floor(12 * scale + 0.5)
-                    _kbL1.Position = UDim2.fromOffset(math.floor(cx), math.floor(y))
-                    _kbL1.TextTransparency = tr
-                    _kbL1.Visible = true
-                end
-                if _kbL2 then
-                    _kbL2.Text = _kb.line2
-                    _kbL2.TextSize = math.floor(22 * scale + 0.5)
-                    _kbL2.Position = UDim2.fromOffset(math.floor(cx), math.floor(y + 16))
-                    _kbL2.TextTransparency = tr
-                    _kbL2.Visible = true
-                end
-                if _kbRing then
-                    if a < 0.32 then
-                        local f = a / 0.32
-                        local fe = 1 - (1 - f) ^ 2
-                        _kbRing.Position = UDim2.fromOffset(math.floor(cx - 20), math.floor(cy - 20))
-                        _kbRing.Size = UDim2.fromOffset(math.floor(12 + 80 * fe), math.floor(12 + 80 * fe))
-                        _kbRing.Visible = true
-                    else _kbRing.Visible = false end
-                end
-            end
-        end
-
-        if _kfPool then
-            local y0 = 110
-            for i, d in ipairs(_kfPool) do
-                local it = _kfItems[i]
-                if d then
-                    if not it or (now - it.t0) >= 5 then
-                        d.Visible = false
-                    else
-                        local a = now - it.t0
-                        local slide = 1 - (1 - math.clamp(a / 0.12, 0, 1)) ^ 2
-                        d.Text = it.text
-                        d.TextColor3 = it.crit and C_GOLD or WHITE
-                        d.TextSize = 13
-                        local rx = vp.X - 16 - d.TextBounds.X + (1 - slide) * 30
-                        local ry = y0 + (i - 1) * 18
-                        local tr = a < 4 and 1 or 1 - (a - 4)
-                        d.Position = UDim2.fromOffset(math.floor(rx), math.floor(ry))
-                        d.TextTransparency = 1 - tr
-                        d.Visible = true
-                    end
-                end
-            end
-            for i = #_kfItems, 1, -1 do
-                if (now - _kfItems[i].t0) >= 5 then table.remove(_kfItems, i) end
-            end
-        end
-
-        if _hs.on and _hsLines then
-            local a = (now - _hs.t0) / 0.18
-            if a >= 1 then
-                _hs.on = false
-                for _, l in ipairs(_hsLines) do if l then l.Visible = false end end
-                if _hsLinesBlk then for _, l in ipairs(_hsLinesBlk) do if l then l.Visible = false end end end
-            else
-                local sp = C:WorldToViewportPoint(_hs.pos)
-                if sp.Z > 0 then
-                    local rad = 4 + 8 * a
-                    local tr = 1 - a * a
-                    for i, l in ipairs(_hsLines) do
-                        if l then
-                            local th = (i - 1) * (math.pi / 3)
-                            local dx, dy = math.cos(th), math.sin(th)
-                            local from = Vector2.new(sp.X + dx * rad, sp.Y + dy * rad)
-                            local to   = Vector2.new(sp.X + dx * (rad + 5), sp.Y + dy * (rad + 5))
-                            l.Position = UDim2.fromOffset(math.floor(math.min(from.X, to.X)), math.floor(math.min(from.Y, to.Y)))
-                            l.Size = UDim2.fromOffset(math.max(math.abs(to.X - from.X), 2), 2)
-                            l.BackgroundTransparency = tr
-                            l.Visible = true
-                        end
-                    end
-                end
-            end
-        end
-
-        if _hf.on and _flashFrame then
-            local a = (now - _hf.t0) / 0.16
-            if a >= 1 then
-                _hf.on = false
-                _flashFrame.Visible = false
-            else
-                _flashFrame.BackgroundTransparency = 0.78 + 0.22 * a
-                _flashFrame.Visible = true
-            end
-        end
-
-        if _vgFrames then
-            local show = false
-            if (now - _vgLastPoll) > 0.1 then
-                _vgLastPoll = now
-                local hp, mh = getHealth(LP)
-                _vgHP = (mh and mh > 0) and hp / mh or 1
-            end
-            if _vgHP > 0 and _vgHP < 0.35 then
-                local sev = math.clamp((0.35 - _vgHP) / 0.25, 0, 1)
-                local tr = (0.85 - 0.35 * sev) + 0.06 * (0.5 + 0.5 * math.sin(now * (0.8 + 0.6 * sev) * 6.283185))
-                tr = math.clamp(tr, 0, 1)
-                for _, f in ipairs(_vgFrames) do
-                    f.BackgroundTransparency = tr
-                    if not f.Visible then f.Visible = true end
-                end
-                show = true
-            end
-            if not show then
-                for _, f in ipairs(_vgFrames) do if f.Visible then f.Visible = false end end
-            end
-        end
-
-        if _wmText and Config.HUDWatermark then
-            _wm.fps = _wm.fps + (1 / math.max(now - (_wm.lastT or now), 0.001) - _wm.fps) * 0.1
-            _wm.lastT = now
-            if (now - _wm.pingT) > 1 then
-                _wm.pingT = now
-                pcall(function()
-                    _wm.ping = math.floor(StatsService.Network.ServerStatsItem["Data Ping"]:GetValue() + 0.5)
-                end)
-            end
-            _wmText.Visible = true
-            if not _wm.bw then
-                pcall(function() local tb = _wmText.TextBounds; if tb and tb.X > 0 then _wm.bw = tb.X end end)
-            end
-            local bw = _wm.bw or 52
-            if (now - _wm.strT) > 0.25 then
-                _wm.strT = now
-                local sess = now - _sessT0
-                _wm.str = string.format("%d fps · %d ms · %02d:%02d · %d kills",
-                    math.floor(_wm.fps + 0.5), _wm.ping,
-                    math.floor(sess / 60), math.floor(sess % 60), _sessKills)
-            end
-            if _wm.stats then
-                _wm.stats.Text = _wm.str
-                _wm.stats.Position = UDim2.fromOffset(26 + bw + 12, 22)
-                _wm.stats.Visible = true
-            end
-            if _wmBg then
-                _wmBg.Size = UDim2.fromOffset(10 + bw + 12 + (bw + 12) + 10, 24)
-                _wmBg.Visible = true
-            end
-            if _wmAccent then
-                _wmAccent.BackgroundColor3 = Color3.fromHSV((now * 0.15) % 1, 0.85, 1)
-            end
-        elseif _wmText then
-            _wmText.Visible = false
-            if _wm.stats then _wm.stats.Visible = false end
-            if _wmBg then _wmBg.Visible = false end
-        end
-    end
-
-    local function hideAllFX()
-        if _hmLines then hideMarker() end
-        for i = #_dnActive, 1, -1 do
-            local e = _dnActive[i]
-            if e.d then e.d.Visible = false end
-            _dnActive[i] = nil
-        end
-        table.clear(_dnByPlr)
-        _kb.on = false
-        if _kbL1 then _kbL1.Visible = false end
-        if _kbL2 then _kbL2.Visible = false end
-        if _kbRing then _kbRing.Visible = false end
-        table.clear(_kfItems)
-        if _kfPool then for _, d in ipairs(_kfPool) do if d then d.Visible = false end end end
-        _hs.on = false
-        if _hsLines then for _, l in ipairs(_hsLines) do if l then l.Visible = false end end end
-        if _hsLinesBlk then for _, l in ipairs(_hsLinesBlk) do if l then l.Visible = false end end end
-        _hf.on = false
-        if _flashFrame then _flashFrame.Visible = false end
-        if _vgFrames then for _, f in ipairs(_vgFrames) do f.Visible = false end end
-        if _wmBg then _wmBg.Visible = false end
-        if _wmText then _wmText.Visible = false end
-        if _wm.stats then _wm.stats.Visible = false end
-    end
-
-    local function hookHumanoid(char)
-        if _hcConn then _hcConn:Disconnect(); _hcConn = nil end
-        if not char then return end
-        task.spawn(function()
-            local hum = char:FindFirstChildOfClass("Humanoid")
-            if not hum then pcall(function() hum = char:WaitForChild("Humanoid", 5) end) end
-            if not hum or not _started or char ~= LP.Character then return end
-            _lastHP = hum.Health
-            _hcConn = hum.HealthChanged:Connect(function(h)
-                local prev = _lastHP or h
-                _lastHP = h
-                if prev - h > 0.5 then triggerFlash() end
-            end)
-        end)
-    end
-
-    function HUDPlus.start()
-        if _started then return end
-        _started = true
-        allocate()
-        hookHumanoid(LP.Character)
-        _charConn = LP.CharacterAdded:Connect(function(c) if _started then hookHumanoid(c) end end)
-        if not _updConn then
-            _updConn = RunService.RenderStepped:Connect(function()
-                if _started then pcall(update) end
-            end)
-        end
-    end
-
-    function HUDPlus.stop()
-        if not _started then return end
-        _started = false
-        if _updConn then _updConn:Disconnect(); _updConn = nil end
-        if _hcConn then _hcConn:Disconnect(); _hcConn = nil end
-        if _charConn then _charConn:Disconnect(); _charConn = nil end
-        hideAllFX()
-    end
-
-    function HUDPlus.onTarget(p, dmg)
-        if not _started then return end
-        local lethal = not isAlive(p)
-        local crit = dmg >= 30
-        triggerHitMarker(crit, lethal)
-        local char = p.Character
-        local rp = char and (char:FindFirstChild("HitboxHead") or char:FindFirstChild("Head")
-            or char:FindFirstChild("HumanoidRootPart"))
-        local hitPos = rp and rp.Position
-        if hitPos then pushDamageNumber(p, dmg, crit, lethal, hitPos) end
-        if crit and hitPos then triggerSpark(hitPos) end
-        if lethal then
-            _sessKills = _sessKills + 1
-            triggerKillBanner(p)
-            pushKillFeed(p, crit)
-        end
-    end
-    HUDPlus.onIncoming = triggerFlash
-    HUDPlus.triggerFlash = triggerFlash
-end
-
 task.spawn(function()
-    local lastHP = {}
     while true do
-        task.wait(0.15)
-        if not HUDPlus then break end
-        for _, p in ipairs(getSafePlayers()) do
-            if p ~= LP and p.Character and isAlive(p) then
-                local hum = p.Character:FindFirstChildOfClass("Humanoid")
-                if hum then
-                    local last = lastHP[p]
-                    if last and hum.Health < last - 0.5 then
-                        HUDPlus.onTarget(p, last - hum.Health)
-                    end
-                    lastHP[p] = hum.Health
-                end
-            else
-                lastHP[p] = nil
-            end
+        task.wait(0.5)
+        if Config.AutoQueueEnabled and not autoQueueThread then
+            autoQueueStart()
+        elseif not Config.AutoQueueEnabled and autoQueueThread then
+            autoQueueStop()
         end
     end
 end)
 
--- ============ 遊戲外觀（GameVisuals 單一定義）============
-local GameVisuals = {}
-do
-    local _log = {}
-    local function note(msg)
-        table.insert(_log, os.date("%H:%M:%S") .. "  " .. msg)
-        if #_log > 60 then table.remove(_log, 1) end
-    end
-    GameVisuals.Choices = {}
-    local _spoof = {}
-    local _maskTarget, _maskInner = nil, nil
-
-    local function everyCosmetic(real)
-        local out = {}
-        if type(real) == "table" then
-            for k, v in pairs(real) do out[k] = v end
-        end
-        pcall(function()
-            local cos = Rivals.Cosmetics and Rivals.Cosmetics.Cosmetics
-            if type(cos) ~= "table" then return end
-            for name in pairs(cos) do
-                if out[name] == nil then out[name] = true end
-            end
-        end)
-        return out
-    end
-
-    local function maskRemove()
-        if _maskTarget == nil then return end
-        local target = _maskTarget
-        local inner = _maskInner
-        _maskTarget = nil
-        _maskInner = nil
-        pcall(function() rawset(target, "Data", inner) end)
-    end
-
-    local function syncMask()
-        maskRemove()
-        if Config.GVUnlockAll ~= true then return end
-        pcall(function()
-            local PDC = loadGameModule(LP.PlayerScripts, {"Controllers","PlayerDataController"})
-            if not PDC then return end
-            local cur = PDC.CurrentData
-            if cur == nil then return end
-            local inner = rawget(cur, "Data")
-            if type(inner) ~= "table" then return end
-            local proxy = setmetatable({}, {
-                __index = function(_, k)
-                    local p = _spoof[k]
-                    if p ~= nil then return p(inner[k]) end
-                    return inner[k]
-                end,
-                __newindex = function(_, k, v) inner[k] = v end,
-            })
-            rawset(cur, "Data", proxy)
-            _maskTarget = cur
-            _maskInner = inner
-        end)
-    end
-
-    function GameVisuals.setUnlockAll(on)
-        Config.GVUnlockAll = (on == true)
-        if on then
-            _spoof.CosmeticInventory = everyCosmetic
-        else
-            _spoof.CosmeticInventory = nil
-        end
-        syncMask()
-        note("解鎖全部 " .. tostring(on))
-    end
-
-    function GameVisuals.enable()
-        Config.GameVisuals = true
-        pcall(syncMask)
-        note("啟用")
-    end
-
-    function GameVisuals.disable()
-        Config.GameVisuals = false
-        maskRemove()
-        GameVisuals.Choices = {}
-        _spoof.CosmeticInventory = nil
-        note("關閉")
-    end
-
-    function GameVisuals.restore() GameVisuals.disable() end
-    function GameVisuals.summary() return _log end
-    function GameVisuals.ready() return _maskTarget ~= nil end
-    GameVisuals.uiAlive = true
-end
-
--- ============ 天氣（流星雨 + 天空盒）============
-local Weather = {}
-do
-    local Vec = Vector3.new
-    local WHITE = Color3.new(1, 1, 1)
-    local _folder = nil
-
-    local function getFolder()
-        if _folder and _folder.Parent then return _folder end
-        local f = Instance.new("Folder")
-        f.Name = "_wx"
-        f:SetAttribute("WX_Custom", true)
-        f.Parent = W
-        _folder = f
-        return f
-    end
-
-    local TX_SGLOW = "rbxassetid://78582616787441"
-    local TX_STAR4 = "rbxassetid://17726943419"
-    local GLINT_C = Color3.fromRGB(246, 250, 255)
-    local MIN_SIN = 0.3
-    local FLOOR_H = 60
-
-    local PAL = {
-        { WHITE, Color3.fromRGB(222, 234, 255), Color3.fromRGB(150, 184, 240) },
-        { Color3.fromRGB(242, 250, 255), Color3.fromRGB(160, 206, 255), Color3.fromRGB(78, 138, 255) },
-        { Color3.fromRGB(255, 246, 220), Color3.fromRGB(255, 205, 122), Color3.fromRGB(222, 140, 44) },
-    }
-    local CLS = {
-        { 80, 55, 250, 105, 50, 28, 3.6 },
-        { 145, 90, 158, 62, 76, 44, 5.4 },
-        { 240, 150, 98, 46, 118, 62, 7.2 },
-    }
-    local TR_TRANSP = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.04),
-        NumberSequenceKeypoint.new(0.12, 0.12),
-        NumberSequenceKeypoint.new(0.45, 0.55),
-        NumberSequenceKeypoint.new(1, 1),
-    })
-    local TR_WIDTH = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 0.4),
-        NumberSequenceKeypoint.new(0.08, 1),
-        NumberSequenceKeypoint.new(1, 0.02),
-    })
-    local HEAD_TR = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 1),
-        NumberSequenceKeypoint.new(0.05, 0),
-        NumberSequenceKeypoint.new(0.72, 0.06),
-        NumberSequenceKeypoint.new(1, 1),
-    })
-    local HALO_TR = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 1),
-        NumberSequenceKeypoint.new(0.07, 0.82),
-        NumberSequenceKeypoint.new(0.7, 0.88),
-        NumberSequenceKeypoint.new(1, 1),
-    })
-    local GLINT_TR = NumberSequence.new({
-        NumberSequenceKeypoint.new(0, 1),
-        NumberSequenceKeypoint.new(0.3, 0.12),
-        NumberSequenceKeypoint.new(0.55, 0.42),
-        NumberSequenceKeypoint.new(1, 1),
-    })
-
-    local _starConn = nil
-    local _starNextT = 0
-    local _starLive = {}
-
-    local function mkSprite(parent, tex, col, sizeSeq, transpSeq, life, emit)
-        local e = Instance.new("ParticleEmitter")
-        e.Texture = tex
-        e.Color = ColorSequence.new(col)
-        e.Size = sizeSeq
-        e.Transparency = transpSeq
-        e.Lifetime = NumberRange.new(life)
-        e.Rate = 0
-        e.Speed = NumberRange.new(0, 0)
-        e.SpreadAngle = Vector2.new(0, 0)
-        e.LightEmission = emit
-        e.LightInfluence = 0
-        e.Drag = 0
-        e.Parent = parent
-        return e
-    end
-
-    local function spawnStreak(start, dir, ci, pi, floorY)
-        if not Config.WeatherShootingStars then return end
-        if #_starLive >= math.clamp(math.floor(4 + 2 * (Config.WeatherStarRate or 1)), 4, 8) then return end
-        local cls, pal = CLS[ci], PAL[pi]
-        local dist = cls[1] + math.random() * cls[2]
-        local spd = cls[3] + math.random() * cls[4]
-        local tail = cls[5] + math.random() * cls[6]
-        if start.Y + dir.Y * dist < floorY then
-            local ny = (floorY - start.Y) / dist
-            local hl = math.sqrt(dir.X * dir.X + dir.Z * dir.Z)
-            if hl > 1e-4 then
-                local k = math.sqrt(math.max(0, 1 - ny * ny)) / hl
-                dir = Vec(dir.X * k, ny, dir.Z * k)
-            end
-        end
-        local dur = dist / spd
-        local life = math.min(tail / spd, dur * 0.9)
-        local sep = cls[7] * (0.85 + math.random() * 0.3)
-        local glintD = 0.3 + math.random() * 0.3
-        local cf0 = CFrame.lookAt(start, start + dir)
-        local host = Instance.new("Part")
-        host.Anchored = true
-        host.CanCollide = false
-        host.CanQuery = false
-        host.CanTouch = false
-        host.CastShadow = false
-        host.Massless = true
-        host.Transparency = 1
-        host.Size = Vec(0.2, 0.2, 0.2)
-        host.CFrame = cf0
-        host:SetAttribute("WX_Custom", true)
-        host.Parent = getFolder()
-        local aT = Instance.new("Attachment")
-        aT.Position = Vec(0, sep * 0.5, 0)
-        aT.Parent = host
-        local aB = Instance.new("Attachment")
-        aB.Position = Vec(0, -sep * 0.5, 0)
-        aB.Parent = host
-        local tr = Instance.new("Trail")
-        tr.Attachment0 = aT
-        tr.Attachment1 = aB
-        tr.FaceCamera = true
-        tr.Texture = TX_SGLOW
-        tr.TextureMode = Enum.TextureMode.Stretch
-        tr.TextureLength = 1
-        tr.Color = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, pal[1]),
-            ColorSequenceKeypoint.new(0.24, pal[2]),
-            ColorSequenceKeypoint.new(1, pal[3]),
-        })
-        tr.Transparency = TR_TRANSP
-        tr.WidthScale = TR_WIDTH
-        tr.Lifetime = life
-        tr.LightEmission = 1
-        tr.LightInfluence = 0
-        tr.MinLength = 0.08
-        tr.Enabled = false
-        tr.Parent = host
-        local hub = Instance.new("Attachment")
-        hub.Parent = host
-        local coreS = sep * 0.62
-        local core = mkSprite(hub, TX_SGLOW, pal[1], NumberSequence.new({
-            NumberSequenceKeypoint.new(0, coreS * 0.55),
-            NumberSequenceKeypoint.new(0.1, coreS),
-            NumberSequenceKeypoint.new(1, coreS * 0.3),
-        }), HEAD_TR, dur, 1)
-        core.LockedToPart = true
-        local haloS = sep * 1.7
-        local halo = mkSprite(hub, TX_SGLOW, pal[2], NumberSequence.new({
-            NumberSequenceKeypoint.new(0, haloS * 0.5),
-            NumberSequenceKeypoint.new(0.12, haloS),
-            NumberSequenceKeypoint.new(1, haloS * 0.35),
-        }), HALO_TR, dur, 1)
-        halo.LockedToPart = true
-        local gs = sep * 1.9
-        local gl = mkSprite(hub, TX_STAR4, GLINT_C, NumberSequence.new({
-            NumberSequenceKeypoint.new(0, gs * 0.1),
-            NumberSequenceKeypoint.new(0.32, gs),
-            NumberSequenceKeypoint.new(1, gs * 0.14),
-        }), GLINT_TR, glintD * 1.2, 0.55)
-        gl.Rotation = NumberRange.new(0, 90)
-        gl.RotSpeed = NumberRange.new(-16, 16)
-        gl:Emit(1)
-        table.insert(_starLive, {
-            host = host, tr = tr, core = core, halo = halo, aT = aT, aB = aB,
-            cf0 = cf0, dir = dir, dist = dist, dur = dur, sep = sep,
-            t0 = tick() + glintD, started = false,
-        })
-        task.delay(glintD + dur + life * 2.8 + 0.6, function()
-            if host and host.Parent then host:Destroy() end
-        end)
-    end
-
-    local function pickPal()
-        local r = math.random()
-        if r < 0.55 then return 1 end
-        if r < 0.92 then return 2 end
-        return 3
-    end
-
-    local function pickCls(pi)
-        if pi == 3 then
-            if math.random() < 0.6 then return 3 end
-            return 2
-        end
-        local r = math.random()
-        if r < 0.25 then return 1 end
-        if r < 0.7 then return 2 end
-        return 3
-    end
-
-    local function viewAz(cam)
-        local lv = cam.CFrame.LookVector
-        local az = math.atan2(lv.Z, lv.X)
-        if math.random() < 0.35 then return math.random() * 6.283 end
-        return az
-    end
-
-    local function spawnSingle()
-        local cam = C
-        if not cam then return end
-        local base = cam.CFrame.Position
-        local az = viewAz(cam) + (math.random() - 0.5) * 1.5
-        local el = math.rad(24 + math.random() * 30)
-        local r = 190 + math.random() * 130
-        local ce = math.cos(el)
-        local start = base + Vec(ce * math.cos(az) * r, math.sin(el) * r, ce * math.sin(az) * r)
-        local hd = az + 1.5708 + (math.random() - 0.5) * 2.2
-        local pi = pickPal()
-        spawnStreak(start, Vec(math.cos(hd), -(0.05 + math.random() * 0.34), math.sin(hd)).Unit,
-            pickCls(pi), pi, base.Y + FLOOR_H)
-    end
-
-    local function stepStars(now)
-        for i = #_starLive, 1, -1 do
-            local s = _starLive[i]
-            if not s.host.Parent then
-                table.remove(_starLive, i)
-            else
-                local a = (now - s.t0) / s.dur
-                if a >= 1 then
-                    s.tr.Enabled = false
-                    table.remove(_starLive, i)
-                elseif a >= 0 then
-                    if not s.started then
-                        s.started = true
-                        s.tr.Enabled = true
-                        s.core:Emit(1)
-                        s.halo:Emit(1)
-                    end
-                    s.host.CFrame = s.cf0 + s.dir * (s.dist * a)
-                    if a > 0.7 then
-                        local h = s.sep * 0.5 * (1 - (a - 0.7) / 0.3)
-                        s.aT.Position = Vec(0, h, 0)
-                        s.aB.Position = Vec(0, -h, 0)
-                    end
-                end
-            end
-        end
-    end
-
-    local function startStars()
-        if _starConn then return end
-        _starNextT = tick() + 2 + math.random() * 4
-        _starConn = RunService.Heartbeat:Connect(function()
-            if not Config.Weather or not Config.WeatherShootingStars then return end
-            local now = tick()
-            if now >= _starNextT then
-                local r = math.clamp(Config.WeatherStarRate or 1, 0.25, 3)
-                _starNextT = now + (5 + math.random() * 6) / r
-                pcall(spawnSingle)
-                if math.random() < math.min(0.22 * r, 0.6) then
-                    task.delay(0.3 + math.random() * 0.5, function()
-                        pcall(spawnSingle)
-                    end)
-                end
-            end
-            pcall(stepStars, now)
-        end)
-    end
-
-    local function stopStars()
-        if _starConn then
-            _starConn:Disconnect()
-            _starConn = nil
-        end
-        for _, s in _starLive do
-            pcall(function() s.host:Destroy() end)
-        end
-        table.clear(_starLive)
-    end
-
-    local SKY = {
-        Space     = { Bk="rbxassetid://159454299", Dn="rbxassetid://159454296", Ft="rbxassetid://159454293", Lf="rbxassetid://159454286", Rt="rbxassetid://159454300", Up="rbxassetid://159454288" },
-        Sunset    = { Bk="rbxassetid://264908339", Dn="rbxassetid://264907909", Ft="rbxassetid://264909420", Lf="rbxassetid://264909758", Rt="rbxassetid://264908886", Up="rbxassetid://264907379" },
-        Clouds    = { Bk="rbxassetid://570557514", Dn="rbxassetid://570557775", Ft="rbxassetid://570557559", Lf="rbxassetid://570557620", Rt="rbxassetid://570557672", Up="rbxassetid://570557727" },
-        Storm     = { Bk="rbxassetid://255027929", Dn="rbxassetid://255027967", Ft="rbxassetid://255027923", Lf="rbxassetid://255027938", Rt="rbxassetid://255027946", Up="rbxassetid://255027960" },
-        Winter    = { Bk="rbxassetid://402229526", Dn="rbxassetid://402229596", Ft="rbxassetid://402229293", Lf="rbxassetid://402229368", Rt="rbxassetid://402229417", Up="rbxassetid://402229564" },
-        Vaporwave = { Bk="rbxassetid://1417494030", Dn="rbxassetid://1417494146", Ft="rbxassetid://1417494253", Lf="rbxassetid://1417494402", Rt="rbxassetid://1417494499", Up="rbxassetid://1417494643" },
-    }
-    Weather.SkyboxOrder = { "Off", "Space", "Sunset", "Clouds", "Storm", "Winter", "Vaporwave" }
-    local _sky, _skyConn = nil, nil
-    local _origSkies = {}
-
-    local function hideMapSkies()
-        for _, c in ipairs(Lighting:GetChildren()) do
-            if c:IsA("Sky") and not c:GetAttribute("WX_Custom") then
-                table.insert(_origSkies, c)
-                pcall(function() c.Parent = nil end)
-            end
-        end
-    end
-    local function restoreMapSkies()
-        for i = #_origSkies, 1, -1 do
-            local c = _origSkies[i]
-            if c and c.Parent == nil then
-                pcall(function() c.Parent = Lighting end)
-            end
-            _origSkies[i] = nil
-        end
-    end
-    local function buildSky(preset)
-        local set = SKY[preset]; if not set then return end
-        hideMapSkies()
-        local s = Instance.new("Sky")
-        s.Name = "_wxSky"
-        s:SetAttribute("WX_Custom", true)
-        s.SkyboxBk = set.Bk
-        s.SkyboxDn = set.Dn
-        s.SkyboxFt = set.Ft
-        s.SkyboxLf = set.Lf
-        s.SkyboxRt = set.Rt
-        s.SkyboxUp = set.Up
-        if Config.SkyboxHideCelestial then
-            s.SunAngularSize = 0
-            s.MoonAngularSize = 0
-            s.StarCount = 0
-            s.CelestialBodiesShown = false
-        else
-            s.CelestialBodiesShown = true
-        end
-        s.Parent = Lighting
-        _sky = s
-    end
-    local function startSkyGuard()
-        if _skyConn then return end
-        _skyConn = Lighting.ChildAdded:Connect(function(c)
-            if c:IsA("Sky") and not c:GetAttribute("WX_Custom") and Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
-                table.insert(_origSkies, c)
-                pcall(function() c.Parent = nil end)
-            end
-        end)
-    end
-    local function stopSkyGuard()
-        if _skyConn then _skyConn:Disconnect(); _skyConn = nil end
-    end
-    local function clearSky()
-        if _sky then pcall(function() _sky:Destroy() end); _sky = nil end
-        restoreMapSkies()
-    end
-
-    function Weather.setSkybox(preset)
-        if preset and not SKY[preset] then preset = "Off" end
-        Config.SkyboxPreset = preset
-        clearSky()
-        if preset == "Off" or preset == nil then
-            stopSkyGuard()
-            return
-        end
-        buildSky(preset)
-        startSkyGuard()
-    end
-
-    function Weather.toggleCelestial(hide)
-        Config.SkyboxHideCelestial = hide
-        if _sky then
-            if hide then
-                _sky.SunAngularSize = 0
-                _sky.MoonAngularSize = 0
-                _sky.StarCount = 0
-                _sky.CelestialBodiesShown = false
-            else
-                _sky.SunAngularSize = 11
-                _sky.MoonAngularSize = 11
-                _sky.StarCount = 3000
-                _sky.CelestialBodiesShown = true
-            end
-        end
-    end
-
-    function Weather.toggleShootingStars(on)
-        Config.WeatherShootingStars = on
-        if on and Config.Weather then startStars() else stopStars() end
-    end
-
-    function Weather.setStarRate(v)
-        Config.WeatherStarRate = math.clamp(v, 0.25, 3)
-        if _starConn then
-            _starNextT = math.min(_starNextT, tick() + 11 / Config.WeatherStarRate)
-        end
-    end
-
-    function Weather.enableWeather()
-        Config.Weather = true
-        if Config.WeatherShootingStars then startStars() end
-        if Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
-            pcall(Weather.setSkybox, Config.SkyboxPreset)
-        end
-    end
-
-    function Weather.disableWeather()
-        Config.Weather = false
-        stopStars()
-        clearSky()
-        stopSkyGuard()
-    end
-
-    function Weather.init()
-        if Config.Weather then Weather.enableWeather() end
-    end
-    function Weather.unload()
-        Weather.disableWeather()
-    end
-end
-
--- ============ Linoria GUI（霓虹暗色主題）============
+-- ============ GUI ============
 local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
 local Library, ThemeManager, SaveManager
 local ok, err = pcall(function()
@@ -3180,14 +1943,12 @@ if not ok or not Library then warn("[LuaHook] Linoria load failed:", err); retur
 
 Library.IsMobile = isMobile
 Library.ShowCustomCursor = false
-
--- 霓虹暗色主題
 pcall(function()
-    Library.MainColor        = Color3.fromRGB(16, 18, 24)
-    Library.BackgroundColor  = Color3.fromRGB(10, 12, 16)
-    Library.AccentColor      = Color3.fromRGB(0, 229, 255)
-    Library.OutlineColor     = Color3.fromRGB(35, 40, 50)
-    Library.FontColor        = Color3.fromRGB(236, 240, 246)
+    Library.MainColor = Color3.fromRGB(26, 27, 31)
+    Library.BackgroundColor = Color3.fromRGB(17, 18, 21)
+    Library.AccentColor = Color3.fromRGB(96, 165, 250)
+    Library.OutlineColor = Color3.fromRGB(43, 45, 52)
+    Library.FontColor = Color3.fromRGB(239, 241, 245)
 end)
 
 local okWin, Window = pcall(function()
@@ -3196,7 +1957,7 @@ local okWin, Window = pcall(function()
         Center = true,
         AutoShow = false,
         TabPadding = 8,
-        MenuFadeTime = 0.25,
+        MenuFadeTime = 0.2,
         NotifySide = 'Right',
         Resizable = true,
         UnlockMouseWhileOpen = true,
@@ -3205,14 +1966,11 @@ end)
 if not okWin or not Window then warn("[LuaHook] GUI window failed:", Window); return end
 
 local Tabs = {
-    Combat   = Window:AddTab('戰鬥'),
-    ESP      = Window:AddTab('透視'),
-    Rage     = Window:AddTab('狂暴'),
-    Gun      = Window:AddTab('槍械'),
-    HUD      = Window:AddTab('介面'),
-    Game     = Window:AddTab('外觀'),
-    Weather  = Window:AddTab('天氣'),
-    Auto     = Window:AddTab('自動'),
+    Combat = Window:AddTab('戰鬥'),
+    ESP = Window:AddTab('透視'),
+    Rage = Window:AddTab('狂暴'),
+    Gun = Window:AddTab('槍械'),
+    Auto = Window:AddTab('自動'),
     Settings = Window:AddTab('設定'),
 }
 local Options = Library.Options or {}
@@ -3220,7 +1978,7 @@ local Toggles = Library.Toggles or {}
 Library.Options = Options
 Library.Toggles = Toggles
 
--- 戰鬥
+-- 战斗分页
 do
     local L = Tabs.Combat:AddLeftGroupbox('靜默自瞄')
     L:AddToggle('Silent_Enabled', { Text = '啟用靜默自瞄', Default = false, Callback = function(v) Config.SilentEnabled = v end })
@@ -3250,14 +2008,12 @@ do
     T:AddToggle('TeamCheck', { Text = '隊伍檢測', Default = true, Callback = function(v) Config.TeamCheck = v end })
 end
 
--- 透視
+-- 透视分页
 do
     local L = Tabs.ESP:AddLeftGroupbox('透視 & 方框')
     L:AddToggle('ESP', { Text = '啟用透視', Default = true, Callback = function(v) if v then ESP.enable() else ESP.disable() end end })
     L:AddToggle('ESPTeamCheck', { Text = '隊伍檢測', Default = true, Callback = function(v) Config.ESPTeamCheck = v end })
     L:AddToggle('ESPBox', { Text = '方框', Default = true, Callback = function(v) Config.ESPBox = v end })
-    L:AddToggle('ESPBoxGlow', { Text = '霓虹光暈', Default = true, Callback = function(v) Config.ESPBoxGlow = v end })
-    L:AddToggle('ESPRainbowBox', { Text = '彩虹方框', Default = false, Callback = function(v) Config.ESPRainbowBox = v end })
     L:AddSlider('ESPBoxThickness', { Text = '方框粗細', Default = 1, Min = 1, Max = 4, Rounding = 0, Callback = function(v) Config.ESPBoxThickness = math.floor(v) end })
     L:AddSlider('ESPBoxScale', { Text = '方框大小', Default = 1, Min = 0.6, Max = 1.6, Rounding = 2, Callback = function(v) Config.ESPBoxScale = v end })
     L:AddToggle('ESPHealth', { Text = '血條', Default = true, Callback = function(v) Config.ESPHealth = v end })
@@ -3270,7 +2026,7 @@ do
     R:AddLabel('方框顏色'):AddColorPicker('ESPBoxColor', { Default = Config.ESPBoxColor, Callback = function(v) Config.ESPBoxColor = v end })
 end
 
--- 狂暴
+-- 狂暴分页
 do
     local RageTab = Tabs.Rage
     local CORE = RageTab:AddLeftGroupbox('核心')
@@ -3300,7 +2056,7 @@ do
     MELEE:AddToggle('Rage_KnifeBot', { Text = '小刀機器人', Default = true, Callback = function(v) Config.RageKnifeBot = v end })
 end
 
--- 槍械
+-- 枪械分页
 do
     local G = Tabs.Gun:AddLeftGroupbox('槍械修改')
     G:AddToggle('Gun_NoCooldown', { Text = '無冷卻', Default = false, Callback = function(v) Config.NoCooldown = v end })
@@ -3311,60 +2067,16 @@ do
     G:AddToggle('Gun_NoMuzzleFlash', { Text = '無槍口火光', Default = false, Callback = function(v) Config.NoMuzzleFlash = v; updateMuzzleFlash() end })
 end
 
--- 介面（HUD）
-do
-    local M = Tabs.HUD:AddLeftGroupbox('主控')
-    M:AddToggle('HUD_Enabled', { Text = '啟用介面', Default = true, Callback = function(v) if v then HUDPlus.start() else HUDPlus.stop() end end })
-    M:AddToggle('HUD_Watermark', { Text = '浮水印', Default = true, Callback = function(v) Config.HUDWatermark = v end })
-
-    local F = Tabs.HUD:AddRightGroupbox('命中回饋')
-    F:AddToggle('FX_HitMarker', { Text = '命中標記', Default = true, Callback = function(v) Config.FXHitMarker = v end })
-    F:AddToggle('FX_DamageNumbers', { Text = '傷害數字', Default = true, Callback = function(v) Config.FXDamageNumbers = v end })
-    F:AddToggle('FX_KillBanner', { Text = '擊殺橫幅', Default = true, Callback = function(v) Config.FXKillBanner = v end })
-    F:AddToggle('FX_KillFeed', { Text = '擊殺訊息', Default = true, Callback = function(v) Config.FXKillFeed = v end })
-    F:AddToggle('FX_HeadshotSpark', { Text = '爆頭火花', Default = true, Callback = function(v) Config.FXHeadshotSpark = v end })
-    F:AddToggle('FX_HitFlash', { Text = '受擊紅閃', Default = true, Callback = function(v) Config.FXHitFlash = v end })
-    F:AddToggle('FX_LowHPVignette', { Text = '低血暗角', Default = true, Callback = function(v) Config.FXLowHPVignette = v end })
-end
-
--- 外觀
-do
-    local L = Tabs.Game:AddLeftGroupbox('外觀')
-    L:AddToggle('GV_Enabled', { Text = '啟用', Default = false, Callback = function(v) if v then GameVisuals.enable() else GameVisuals.disable() end end })
-    local D = L:AddDependencyBox()
-    D:AddToggle('GV_UnlockAll', { Text = '解鎖全部', Default = false, Callback = function(v) GameVisuals.setUnlockAll(v) end })
-    D:SetupDependencies({ { Toggles.GV_Enabled, true } })
-    L:AddButton({ Text = '重置全部', Func = function() pcall(GameVisuals.restore) end })
-end
-
--- 天氣
-do
-    local L = Tabs.Weather:AddLeftGroupbox('天氣')
-    L:AddToggle('WX_Enabled', { Text = '啟用', Default = false, Callback = function(v) if v then Weather.enableWeather() else Weather.disableWeather() end end })
-    local D = L:AddDependencyBox()
-    D:AddToggle('WX_Stars', { Text = '流星雨', Default = false, Callback = function(v) Weather.toggleShootingStars(v) end })
-    D:AddSlider('WX_StarRate', { Text = '流星雨頻率', Default = 1, Min = 0.25, Max = 3, Rounding = 2, Callback = function(v) Weather.setStarRate(v) end })
-    D:AddDivider('天空')
-    D:AddDropdown('WX_Sky', { Values = {'Off','Space','Sunset','Clouds','Storm','Winter','Vaporwave'}, Default = 'Off', Text = '天空盒', Callback = function(v) Weather.setSkybox(v) end })
-    D:AddToggle('WX_HideCelestial', { Text = '隱藏天體', Default = false, Callback = function(v) Weather.toggleCelestial(v) end })
-    D:SetupDependencies({ { Toggles.WX_Enabled, true } })
-end
-
--- 自動（AutoQueue）
+-- 自动分页
 do
     local L = Tabs.Auto:AddLeftGroupbox('自動排隊')
-    L:AddToggle('AQ_Enabled', { Text = '啟用自動排隊', Default = false, Callback = function(v)
-        if v then AutoQueue.start(State.AutoQueueMode, State.AutoQueueRanked, Config.AutoQueueDelay)
-        else AutoQueue.stop() end
-    end })
-    L:AddDropdown('AQ_Mode', { Values = {'1v1','2v2','3v3','4v4','5v5'}, Default = '1v1', Text = '模式', Callback = function(v) State.AutoQueueMode = v end })
-    L:AddToggle('AQ_Ranked', { Text = '積分', Default = false, Callback = function(v) State.AutoQueueRanked = v end })
-    L:AddSlider('AQ_Delay', { Text = '延遲 (秒)', Default = 2, Min = 0, Max = 30, Rounding = 1, Compact = true, Callback = function(v) Config.AutoQueueDelay = v end })
-    L:AddLabel('狀態: 等待中')
-    L:AddButton({ Text = '立即加入一次', Func = function() AutoQueue.join(State.AutoQueueMode, State.AutoQueueRanked) end })
+    L:AddToggle('AutoQueue_Enabled', { Text = '自動 1v1', Default = false, Callback = function(v) Config.AutoQueueEnabled = v end })
+    L:AddDropdown('AutoQueue_Mode', { Text = '模式', Default = '1v1', Values = {'1v1','2v2','3v3','4v4','5v5'}, Callback = function(v) Config.AutoQueueMode = v end })
+    L:AddToggle('AutoQueue_Ranked', { Text = '排名模式', Default = false, Callback = function(v) Config.AutoQueueRanked = v end })
+    L:AddSlider('AutoQueue_Delay', { Text = '延遲 秒', Default = 2, Min = 0, Max = 30, Rounding = 1, Compact = true, Callback = function(v) Config.AutoQueueDelay = v end })
 end
 
--- 設定
+-- 设定分页
 do
     local L = Tabs.Settings:AddLeftGroupbox('選單')
     L:AddDropdown('GUIToggleKey', {
@@ -3381,10 +2093,6 @@ do
         pcall(function() Aimbot.unload() end)
         pcall(function() Trigger.unload() end)
         pcall(function() Rage.unload() end)
-        pcall(function() HUDPlus.stop() end)
-        pcall(function() GameVisuals.restore() end)
-        pcall(function() Weather.unload() end)
-        pcall(function() AutoQueue.stop() end)
         if muzzleFlashConn then muzzleFlashConn:Disconnect() end
         if shared._LH_GunOrig and GunModule then
             if setreadonly then pcall(setreadonly, GunModule, false) end
@@ -3397,9 +2105,6 @@ do
         if shared._LH_MeleeOrig and MeleeModule then
             if setreadonly then pcall(setreadonly, MeleeModule, false) end
             MeleeModule.StartShooting = shared._LH_MeleeOrig
-        end
-        if shared._LH_velConn then
-            pcall(function() shared._LH_velConn:Disconnect() end)
         end
         Library:Unload()
         _G["\76\72"] = nil
@@ -3429,9 +2134,7 @@ task.spawn(function()
 end)
 
 pcall(Rage.init)
-pcall(HUDPlus.start)
-pcall(Weather.init)
 
-Library:Notify('v12.0 載入完成', 4)
+Library:Notify('v12.0 完整版載入完成', 4)
 _G["\76\72"] = Library
 print("[v12.0] 完整版載入完成")
