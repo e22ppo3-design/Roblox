@@ -2858,7 +2858,7 @@ do
     GameVisuals.uiAlive = true
 end
 -- ============================================================
--- 第四段-2：游戏外观 + 天气（Linoria 版）
+-- 第四段-2：游戏外观 + 精简天气（流星雨 + 天空盒）
 -- ============================================================
 
 -- ============ 游戏外观（GameVisuals）============
@@ -2949,15 +2949,8 @@ do
     function GameVisuals.restore()
         GameVisuals.disable()
     end
-
-    function GameVisuals.summary()
-        return _log
-    end
-
-    function GameVisuals.ready()
-        return _maskTarget ~= nil
-    end
-
+    function GameVisuals.summary() return _log end
+    function GameVisuals.ready() return _maskTarget ~= nil end
     function GameVisuals.playEmote(name) end
     function GameVisuals.emoteList() return {"None"} end
     function GameVisuals.setWeapon(v) end
@@ -2980,11 +2973,9 @@ do
     GameVisuals.uiAlive = true
 end
 
--- ============ 天气（Weather）============
+-- ============ 天气（流星雨 + 天空盒）============
 local Weather = {}
 do
-    local SoundService = game:GetService("SoundService")
-    local TweenService = game:GetService("TweenService")
     local Vec = Vector3.new
     local WHITE = Color3.new(1, 1, 1)
     local _folder = nil
@@ -2999,199 +2990,443 @@ do
         return f
     end
 
-    local _rain = { drops = {}, conn = nil, folder = nil, dir = nil }
-    local RAIN_RADIUS = 70
-    local RAIN_TOP = 70
-    local RAIN_BOT = -28
-    local RAIN_MAX = 420
+    local TX_SGLOW = "rbxassetid://78582616787441"
+    local TX_STAR4 = "rbxassetid://17726943419"
+    local GLINT_C = Color3.fromRGB(246, 250, 255)
+    local MIN_SIN = 0.3
+    local FLOOR_H = 60
 
-    local function rainFolder()
-        if _rain.folder and _rain.folder.Parent then return _rain.folder end
-        local f = Instance.new("Folder")
-        f.Name = "_wxRain"
-        f:SetAttribute("WX_Custom", true)
-        f.Parent = getFolder()
-        _rain.folder = f
-        return f
+    local PAL = {
+        { WHITE, Color3.fromRGB(222, 234, 255), Color3.fromRGB(150, 184, 240) },
+        { Color3.fromRGB(242, 250, 255), Color3.fromRGB(160, 206, 255), Color3.fromRGB(78, 138, 255) },
+        { Color3.fromRGB(255, 246, 220), Color3.fromRGB(255, 205, 122), Color3.fromRGB(222, 140, 44) },
+    }
+    local CLS = {
+        { 80, 55, 250, 105, 50, 28, 3.6 },
+        { 145, 90, 158, 62, 76, 44, 5.4 },
+        { 240, 150, 98, 46, 118, 62, 7.2 },
+    }
+    local TR_TRANSP = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.04),
+        NumberSequenceKeypoint.new(0.12, 0.12),
+        NumberSequenceKeypoint.new(0.45, 0.55),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    local TR_WIDTH = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.4),
+        NumberSequenceKeypoint.new(0.08, 1),
+        NumberSequenceKeypoint.new(1, 0.02),
+    })
+    local HEAD_TR = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.05, 0),
+        NumberSequenceKeypoint.new(0.72, 0.06),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    local HALO_TR = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.07, 0.82),
+        NumberSequenceKeypoint.new(0.7, 0.88),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+    local GLINT_TR = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 1),
+        NumberSequenceKeypoint.new(0.3, 0.12),
+        NumberSequenceKeypoint.new(0.55, 0.42),
+        NumberSequenceKeypoint.new(1, 1),
+    })
+
+    local _starConn = nil
+    local _starNextT = 0
+    local _starLive = {}
+
+    local function mkSprite(parent, tex, col, sizeSeq, transpSeq, life, emit)
+        local e = Instance.new("ParticleEmitter")
+        e.Texture = tex
+        e.Color = ColorSequence.new(col)
+        e.Size = sizeSeq
+        e.Transparency = transpSeq
+        e.Lifetime = NumberRange.new(life)
+        e.Rate = 0
+        e.Speed = NumberRange.new(0, 0)
+        e.SpreadAngle = Vector2.new(0, 0)
+        e.LightEmission = emit
+        e.LightInfluence = 0
+        e.Drag = 0
+        e.Parent = parent
+        return e
     end
 
-    local function makeDrop(parent, streakLen, width, color, transp)
-        local part = Instance.new("Part")
-        part.Anchored = true
-        part.CanCollide = false
-        part.CanQuery = false
-        part.CanTouch = false
-        part.CastShadow = false
-        part.Massless = true
-        part.Transparency = 1
-        part.Size = Vec(0.05, 0.05, 0.05)
-        part:SetAttribute("WX_Custom", true)
-        local a0 = Instance.new("Attachment")
-        a0.Parent = part
-        local a1 = Instance.new("Attachment")
-        a1.Position = Vec(0.12, -1, 0.05).Unit * streakLen
-        a1.Parent = part
-        local beam = Instance.new("Beam")
-        beam.Attachment0 = a0
-        beam.Attachment1 = a1
-        beam.Segments = 1
-        beam.FaceCamera = true
-        beam.Width0 = width
-        beam.Width1 = width * 0.55
-        beam.LightEmission = 0.35
-        beam.LightInfluence = 0
-        beam.Color = ColorSequence.new(color)
-        beam.Transparency = NumberSequence.new(transp)
-        beam.Parent = part
-        part.Parent = parent
-        return part, a1, beam
-    end
-
-    local function seedDrop(d, camPos)
-        local ang = math.random() * math.pi * 2
-        local rad = math.sqrt(math.random()) * RAIN_RADIUS
-        local y = camPos.Y + RAIN_TOP - math.random() * (RAIN_TOP - RAIN_BOT)
-        d.pos = Vec(camPos.X + math.cos(ang) * rad, y, camPos.Z + math.sin(ang) * rad)
-    end
-
-    local function newDrop(folder, i, camPos)
-        local base, width, transp, spd0
-        if (i % 3) ~= 0 then
-            base = 5 + math.random() * 3
-            width = 0.10
-            transp = 0.22
-            spd0 = 150 + math.random() * 30
-        else
-            base = 3 + math.random() * 2
-            width = 0.06
-            transp = 0.55
-            spd0 = 120 + math.random() * 30
-        end
-        local part, a1, beam = makeDrop(folder, base, width, Color3.fromRGB(180, 202, 232), transp)
-        local d = {
-            part = part, a1 = a1, beam = beam, base = base, len = base,
-            w0 = width, t0 = transp, spd0 = spd0, spd = spd0,
-        }
-        seedDrop(d, camPos)
-        part.CFrame = CFrame.new(d.pos)
-        return d
-    end
-
-    local function tuneRain()
-        local folder = rainFolder()
-        local I = math.clamp(Config.WeatherIntensity or 1, 0.15, 2)
-        local rate = 0
-        if I < 1 then
-            rate = math.exp(1.75 * (I - 1))
-        else
-            rate = math.exp(0.85 * (I - 1))
-        end
-        local n = math.clamp(math.floor(150 * rate), 16, RAIN_MAX)
-        local drops = _rain.drops
-        local camPos = Vec(0, 0, 0)
-        if C then camPos = C.CFrame.Position end
-        for i = #drops, n + 1, -1 do
-            drops[i].part:Destroy()
-            drops[i] = nil
-        end
-        for i = #drops + 1, n do
-            drops[i] = newDrop(folder, i, camPos)
-        end
-    end
-
-    local function buildRain()
-        if _rain.folder then
-            pcall(function() _rain.folder:Destroy() end)
-            _rain.folder = nil
-        end
-        table.clear(_rain.drops)
-        _rain.dir = Vec(0.12, -1, 0.05).Unit
-        tuneRain()
-    end
-
-    local function startRain()
-        if _rain.conn then return end
-        _rain.conn = RunService.Heartbeat:Connect(function(dt)
-            if not Config.Weather then return end
-            if Config.WeatherType ~= "Rain" then return end
-            if not C then return end
-            local camPos = C.CFrame.Position
-            local r2 = RAIN_RADIUS * RAIN_RADIUS
-            for i = 1, #_rain.drops do
-                local d = _rain.drops[i]
-                local p = d.pos + _rain.dir * (d.spd * dt)
-                local relX = p.X - camPos.X
-                local relY = p.Y - camPos.Y
-                local relZ = p.Z - camPos.Z
-                if relY < RAIN_BOT or (relX * relX + relZ * relZ) > r2 then
-                    seedDrop(d, camPos)
-                    p = d.pos
-                end
-                d.pos = p
-                if d.part then d.part.CFrame = CFrame.new(p) end
+    local function spawnStreak(start, dir, ci, pi, floorY)
+        if not Config.WeatherShootingStars then return end
+        if #_starLive >= math.clamp(math.floor(4 + 2 * (Config.WeatherStarRate or 1)), 4, 8) then return end
+        local cls, pal = CLS[ci], PAL[pi]
+        local dist = cls[1] + math.random() * cls[2]
+        local spd = cls[3] + math.random() * cls[4]
+        local tail = cls[5] + math.random() * cls[6]
+        if start.Y + dir.Y * dist < floorY then
+            local ny = (floorY - start.Y) / dist
+            local hl = math.sqrt(dir.X * dir.X + dir.Z * dir.Z)
+            if hl > 1e-4 then
+                local k = math.sqrt(math.max(0, 1 - ny * ny)) / hl
+                dir = Vec(dir.X * k, ny, dir.Z * k)
             end
+        end
+        local dur = dist / spd
+        local life = math.min(tail / spd, dur * 0.9)
+        local sep = cls[7] * (0.85 + math.random() * 0.3)
+        local glintD = 0.3 + math.random() * 0.3
+        local cf0 = CFrame.lookAt(start, start + dir)
+        local host = Instance.new("Part")
+        host.Anchored = true
+        host.CanCollide = false
+        host.CanQuery = false
+        host.CanTouch = false
+        host.CastShadow = false
+        host.Massless = true
+        host.Transparency = 1
+        host.Size = Vec(0.2, 0.2, 0.2)
+        host.CFrame = cf0
+        host:SetAttribute("WX_Custom", true)
+        host.Parent = getFolder()
+        local aT = Instance.new("Attachment")
+        aT.Position = Vec(0, sep * 0.5, 0)
+        aT.Parent = host
+        local aB = Instance.new("Attachment")
+        aB.Position = Vec(0, -sep * 0.5, 0)
+        aB.Parent = host
+        local tr = Instance.new("Trail")
+        tr.Attachment0 = aT
+        tr.Attachment1 = aB
+        tr.FaceCamera = true
+        tr.Texture = TX_SGLOW
+        tr.TextureMode = Enum.TextureMode.Stretch
+        tr.TextureLength = 1
+        tr.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, pal[1]),
+            ColorSequenceKeypoint.new(0.24, pal[2]),
+            ColorSequenceKeypoint.new(1, pal[3]),
+        })
+        tr.Transparency = TR_TRANSP
+        tr.WidthScale = TR_WIDTH
+        tr.Lifetime = life
+        tr.LightEmission = 1
+        tr.LightInfluence = 0
+        tr.MinLength = 0.08
+        tr.Enabled = false
+        tr.Parent = host
+        local hub = Instance.new("Attachment")
+        hub.Parent = host
+        local coreS = sep * 0.62
+        local core = mkSprite(hub, TX_SGLOW, pal[1], NumberSequence.new({
+            NumberSequenceKeypoint.new(0, coreS * 0.55),
+            NumberSequenceKeypoint.new(0.1, coreS),
+            NumberSequenceKeypoint.new(1, coreS * 0.3),
+        }), HEAD_TR, dur, 1)
+        core.LockedToPart = true
+        local haloS = sep * 1.7
+        local halo = mkSprite(hub, TX_SGLOW, pal[2], NumberSequence.new({
+            NumberSequenceKeypoint.new(0, haloS * 0.5),
+            NumberSequenceKeypoint.new(0.12, haloS),
+            NumberSequenceKeypoint.new(1, haloS * 0.35),
+        }), HALO_TR, dur, 1)
+        halo.LockedToPart = true
+        local gs = sep * 1.9
+        local gl = mkSprite(hub, TX_STAR4, GLINT_C, NumberSequence.new({
+            NumberSequenceKeypoint.new(0, gs * 0.1),
+            NumberSequenceKeypoint.new(0.32, gs),
+            NumberSequenceKeypoint.new(1, gs * 0.14),
+        }), GLINT_TR, glintD * 1.2, 0.55)
+        gl.Rotation = NumberRange.new(0, 90)
+        gl.RotSpeed = NumberRange.new(-16, 16)
+        gl:Emit(1)
+        table.insert(_starLive, {
+            host = host, tr = tr, core = core, halo = halo, aT = aT, aB = aB,
+            cf0 = cf0, dir = dir, dist = dist, dur = dur, sep = sep,
+            t0 = tick() + glintD, started = false,
+        })
+        task.delay(glintD + dur + life * 2.8 + 0.6, function()
+            if host and host.Parent then host:Destroy() end
         end)
     end
 
-    local function stopRain()
-        if _rain.conn then
-            _rain.conn:Disconnect()
-            _rain.conn = nil
-        end
-        if _rain.folder then
-            pcall(function() _rain.folder:Destroy() end)
-            _rain.folder = nil
-        end
-        table.clear(_rain.drops)
-        _rain.dir = nil
+    local function pickPal()
+        local r = math.random()
+        if r < 0.55 then return 1 end
+        if r < 0.92 then return 2 end
+        return 3
     end
 
-    local function applyType(name)
-        stopRain()
-        if name == "Rain" then
-            buildRain()
-            startRain()
+    local function pickCls(pi)
+        if pi == 3 then
+            if math.random() < 0.6 then return 3 end
+            return 2
+        end
+        local r = math.random()
+        if r < 0.25 then return 1 end
+        if r < 0.7 then return 2 end
+        return 3
+    end
+
+    local function viewAz(cam)
+        local lv = cam.CFrame.LookVector
+        local az = math.atan2(lv.Z, lv.X)
+        if math.random() < 0.35 then return math.random() * 6.283 end
+        return az
+    end
+
+    local function spawnSingle()
+        local cam = C
+        if not cam then return end
+        local base = cam.CFrame.Position
+        local az = viewAz(cam) + (math.random() - 0.5) * 1.5
+        local el = math.rad(24 + math.random() * 30)
+        local r = 190 + math.random() * 130
+        local ce = math.cos(el)
+        local start = base + Vec(ce * math.cos(az) * r, math.sin(el) * r, ce * math.sin(az) * r)
+        local hd = az + 1.5708 + (math.random() - 0.5) * 2.2
+        local pi = pickPal()
+        spawnStreak(start, Vec(math.cos(hd), -(0.05 + math.random() * 0.34), math.sin(hd)).Unit,
+            pickCls(pi), pi, base.Y + FLOOR_H)
+    end
+
+    local function spawnShower()
+        local cam = C
+        if not cam then return end
+        local base = cam.CFrame.Position
+        local floorY = base.Y + FLOOR_H
+        local raz = viewAz(cam) + (math.random() - 0.5) * 0.9
+        local rel = math.rad(36 + math.random() * 16)
+        local cr = math.cos(rel)
+        local rv = Vec(cr * math.cos(raz), math.sin(rel), cr * math.sin(raz))
+        local dn = (Vec(0, -1, 0) + rv * rv.Y).Unit
+        local sd = rv:Cross(dn).Unit
+        local pi = pickPal()
+        local t = 0
+        for _ = 1, 3 + math.random(0, 2) do
+            t = t + 0.16 + math.random() * 0.42
+            task.delay(t, function()
+                if not Config.WeatherShootingStars then return end
+                local phi = (math.random() - 0.5) * 2.8
+                local off = dn * math.cos(phi) + sd * math.sin(phi)
+                local th = math.rad(9 + math.random() * 24)
+                local ct, st = math.cos(th), math.sin(th)
+                local u = (rv * ct + off * st).Unit
+                if u.Y < MIN_SIN then
+                    off = -off
+                    u = (rv * ct + off * st).Unit
+                end
+                if u.Y < MIN_SIN then return end
+                local ci = 2
+                if th < 0.22 then ci = 1
+                elseif th > 0.44 then ci = 3 end
+                pcall(spawnStreak, base + u * (215 + math.random() * 75),
+                    (off * ct - rv * st).Unit, ci, pi, floorY)
+            end)
+        end
+    end
+
+    local function stepStars(now)
+        for i = #_starLive, 1, -1 do
+            local s = _starLive[i]
+            if not s.host.Parent then
+                table.remove(_starLive, i)
+            else
+                local a = (now - s.t0) / s.dur
+                if a >= 1 then
+                    s.tr.Enabled = false
+                    table.remove(_starLive, i)
+                elseif a >= 0 then
+                    if not s.started then
+                        s.started = true
+                        s.tr.Enabled = true
+                        s.core:Emit(1)
+                        s.halo:Emit(1)
+                    end
+                    s.host.CFrame = s.cf0 + s.dir * (s.dist * a)
+                    if a > 0.7 then
+                        local h = s.sep * 0.5 * (1 - (a - 0.7) / 0.3)
+                        s.aT.Position = Vec(0, h, 0)
+                        s.aB.Position = Vec(0, -h, 0)
+                    end
+                end
+            end
+        end
+    end
+
+    local function startStars()
+        if _starConn then return end
+        _starNextT = tick() + 2 + math.random() * 4
+        _starConn = RunService.Heartbeat:Connect(function()
+            if not Config.Weather or not Config.WeatherShootingStars then return end
+            local now = tick()
+            if now >= _starNextT then
+                local r = math.clamp(Config.WeatherStarRate or 1, 0.25, 3)
+                _starNextT = now + (5 + math.random() * 6) / r
+                if math.random() < math.min(0.06 * r, 0.35) then
+                    pcall(spawnShower)
+                else
+                    pcall(spawnSingle)
+                    if math.random() < math.min(0.22 * r, 0.6) then
+                        task.delay(0.3 + math.random() * 0.5, function()
+                            pcall(spawnSingle)
+                        end)
+                    end
+                end
+            end
+            pcall(stepStars, now)
+        end)
+    end
+
+    local function stopStars()
+        if _starConn then
+            _starConn:Disconnect()
+            _starConn = nil
+        end
+        for _, s in _starLive do
+            pcall(function() s.host:Destroy() end)
+        end
+        table.clear(_starLive)
+    end
+
+    local SKY = {
+        Space     = { Bk="rbxassetid://159454299", Dn="rbxassetid://159454296", Ft="rbxassetid://159454293", Lf="rbxassetid://159454286", Rt="rbxassetid://159454300", Up="rbxassetid://159454288" },
+        Sunset    = { Bk="rbxassetid://264908339", Dn="rbxassetid://264907909", Ft="rbxassetid://264909420", Lf="rbxassetid://264909758", Rt="rbxassetid://264908886", Up="rbxassetid://264907379" },
+        Clouds    = { Bk="rbxassetid://570557514", Dn="rbxassetid://570557775", Ft="rbxassetid://570557559", Lf="rbxassetid://570557620", Rt="rbxassetid://570557672", Up="rbxassetid://570557727" },
+        Storm     = { Bk="rbxassetid://255027929", Dn="rbxassetid://255027967", Ft="rbxassetid://255027923", Lf="rbxassetid://255027938", Rt="rbxassetid://255027946", Up="rbxassetid://255027960" },
+        Winter    = { Bk="rbxassetid://402229526", Dn="rbxassetid://402229596", Ft="rbxassetid://402229293", Lf="rbxassetid://402229368", Rt="rbxassetid://402229417", Up="rbxassetid://402229564" },
+        Vaporwave = { Bk="rbxassetid://1417494030", Dn="rbxassetid://1417494146", Ft="rbxassetid://1417494253", Lf="rbxassetid://1417494402", Rt="rbxassetid://1417494499", Up="rbxassetid://1417494643" },
+    }
+    Weather.SkyboxOrder = { "Off", "Space", "Sunset", "Clouds", "Storm", "Winter", "Vaporwave" }
+    local _sky, _skyConn = nil, nil
+    local _origSkies = {}
+    local function hideMapSkies()
+        for _, c in ipairs(Lighting:GetChildren()) do
+            if c:IsA("Sky") and not c:GetAttribute("WX_Custom") then
+                table.insert(_origSkies, c)
+                pcall(function() c.Parent = nil end)
+            end
+        end
+    end
+    local function restoreMapSkies()
+        for i = #_origSkies, 1, -1 do
+            local c = _origSkies[i]
+            if c and c.Parent == nil then
+                pcall(function() c.Parent = Lighting end)
+            end
+            _origSkies[i] = nil
+        end
+    end
+    local function buildSky(preset)
+        local set = SKY[preset]; if not set then return end
+        hideMapSkies()
+        local s = Instance.new("Sky")
+        s.Name = "_wxSky"
+        s:SetAttribute("WX_Custom", true)
+        s.SkyboxBk = set.Bk
+        s.SkyboxDn = set.Dn
+        s.SkyboxFt = set.Ft
+        s.SkyboxLf = set.Lf
+        s.SkyboxRt = set.Rt
+        s.SkyboxUp = set.Up
+        if Config.SkyboxHideCelestial then
+            s.SunAngularSize = 0
+            s.MoonAngularSize = 0
+            s.StarCount = 0
+            s.CelestialBodiesShown = false
+        else
+            s.CelestialBodiesShown = true
+        end
+        s.Parent = Lighting
+        _sky = s
+    end
+    local function startSkyGuard()
+        if _skyConn then return end
+        _skyConn = Lighting.ChildAdded:Connect(function(c)
+            if c:IsA("Sky") and not c:GetAttribute("WX_Custom") and Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
+                table.insert(_origSkies, c)
+                pcall(function() c.Parent = nil end)
+            end
+        end)
+    end
+    local function stopSkyGuard()
+        if _skyConn then _skyConn:Disconnect(); _skyConn = nil end
+    end
+    local function clearSky()
+        if _sky then pcall(function() _sky:Destroy() end); _sky = nil end
+        restoreMapSkies()
+    end
+
+    function Weather.setSkybox(preset)
+        if preset and not SKY[preset] then preset = "Off" end
+        Config.SkyboxPreset = preset
+        clearSky()
+        if preset == "Off" or preset == nil then
+            stopSkyGuard()
+            return
+        end
+        buildSky(preset)
+        startSkyGuard()
+    end
+
+    function Weather.toggleCelestial(hide)
+        Config.SkyboxHideCelestial = hide
+        if _sky then
+            if hide then
+                _sky.SunAngularSize = 0
+                _sky.MoonAngularSize = 0
+                _sky.StarCount = 0
+                _sky.CelestialBodiesShown = false
+            else
+                _sky.SunAngularSize = 11
+                _sky.MoonAngularSize = 11
+                _sky.StarCount = 3000
+                _sky.CelestialBodiesShown = true
+            end
+        end
+    end
+
+    function Weather.toggleShootingStars(on)
+        Config.WeatherShootingStars = on
+        if on and Config.Weather then startStars() else stopStars() end
+    end
+
+    function Weather.setStarRate(v)
+        Config.WeatherStarRate = math.clamp(v, 0.25, 3)
+        if _starConn then
+            _starNextT = math.min(_starNextT, tick() + 11 / Config.WeatherStarRate)
         end
     end
 
     function Weather.enableWeather()
         Config.Weather = true
-        applyType(Config.WeatherType or "Rain")
+        if Config.WeatherShootingStars then startStars() end
+        if Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
+            pcall(Weather.setSkybox, Config.SkyboxPreset)
+        end
     end
 
     function Weather.disableWeather()
         Config.Weather = false
-        stopRain()
+        stopStars()
+        clearSky()
+        stopSkyGuard()
     end
 
-    function Weather.setType(name)
-        Config.WeatherType = name
-        if Config.Weather then applyType(name) end
-    end
-
-    function Weather.setIntensity(v)
-        Config.WeatherIntensity = math.clamp(v, 0.15, 2)
-        if Config.Weather and Config.WeatherType == "Rain" then tuneRain() end
-    end
-
-    function Weather.setSoundVolume(v)
-        Config.WeatherSoundVolume = v
-    end
-
+    function Weather.setType(name) Config.WeatherType = name end
+    function Weather.setIntensity(v) Config.WeatherIntensity = v end
+    function Weather.setSoundVolume(v) Config.WeatherSoundVolume = v end
     function Weather.toggleStorm(on) Config.WeatherStorm = on end
     function Weather.toggleMood(on) Config.WeatherMood = on end
     function Weather.toggleMeteors(on) Config.WeatherMeteors = on end
-    function Weather.toggleShootingStars(on) Config.WeatherShootingStars = on end
     function Weather.toggleClock(on) Config.WeatherClockDial = on end
     function Weather.togglePuddles(on) Config.WeatherPuddles = on end
-    function Weather.setSkybox(name) Config.SkyboxPreset = name end
-    function Weather.toggleCelestial(on) Config.SkyboxHideCelestial = on end
     function Weather.toggleGodRays(on) Config.WeatherGodRays = on end
     function Weather.toggleRainbow(on) Config.WeatherRainbow = on end
-    function Weather.setStormMin(v) Config.WeatherStormMin = math.clamp(v, 1, 30) end
-    function Weather.setStormVar(v) Config.WeatherStormVar = math.clamp(v, 0, 30) end
-    function Weather.setMeteorRate(v) Config.WeatherMeteorRate = math.clamp(v, 0.25, 3) end
-    function Weather.setStarRate(v) Config.WeatherStarRate = math.clamp(v, 0.25, 3) end
+    function Weather.setStormMin(v) Config.WeatherStormMin = v end
+    function Weather.setStormVar(v) Config.WeatherStormVar = v end
+    function Weather.setMeteorRate(v) Config.WeatherMeteorRate = v end
+
     function Weather.init()
         if Config.Weather then Weather.enableWeather() end
     end
@@ -3265,28 +3500,29 @@ task.spawn(function()
             end
         })
         local D = L:AddDependencyBox()
-        D:AddDropdown('WX_Type', {
-            Values = {'Rain','Snow','Petals','Autumn','Mist','Ash','Sandstorm','Embers','Fireflies'},
-            Default = 'Rain',
-            Text = '降水',
-            Callback = function(v) Weather.setType(v) end
+        D:AddToggle('WX_Stars', {
+            Text = '流星雨',
+            Default = false,
+            Callback = function(v) Weather.toggleShootingStars(v) end
         })
-        D:AddSlider('WX_Intensity', {
-            Text = '強度',
+        D:AddSlider('WX_StarRate', {
+            Text = '流星雨頻率',
             Default = 1,
-            Min = 0.15, Max = 2, Rounding = 2,
-            Callback = function(v) Weather.setIntensity(v) end
+            Min = 0.25, Max = 3, Rounding = 2,
+            Callback = function(v) Weather.setStarRate(v) end
         })
-        D:AddSlider('WX_Volume', {
-            Text = '音量',
-            Default = 0.35,
-            Min = 0, Max = 1, Rounding = 2,
-            Callback = function(v) Weather.setSoundVolume(v) end
+        D:AddDivider('天空')
+        D:AddDropdown('WX_Sky', {
+            Values = {'Off','Space','Sunset','Clouds','Storm','Winter','Vaporwave'},
+            Default = 'Off',
+            Text = '天空盒',
+            Callback = function(v) Weather.setSkybox(v) end
         })
-        D:AddToggle('WX_Storm', { Text = '風暴與閃電', Default = false, Callback = function(v) Weather.toggleStorm(v) end })
-        D:AddToggle('WX_Meteors', { Text = '流星', Default = false, Callback = function(v) Weather.toggleMeteors(v) end })
-        D:AddToggle('WX_Stars', { Text = '流星雨', Default = false, Callback = function(v) Weather.toggleShootingStars(v) end })
-        D:AddToggle('WX_Puddles', { Text = '水窪', Default = false, Callback = function(v) Weather.togglePuddles(v) end })
+        D:AddToggle('WX_HideCelestial', {
+            Text = '隱藏天體',
+            Default = false,
+            Callback = function(v) Weather.toggleCelestial(v) end
+        })
         D:SetupDependencies({ { Toggles.WX_Enabled, true } })
     end
 end)
