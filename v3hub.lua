@@ -1,6 +1,6 @@
 -- ============================================================
--- LuaHook v12.0 — 完整版
--- 第一段：反封锁 + 框架 + 工具 + Gun Mods + 静默自瞄 + 自瞄 + 触发
+-- LuaHook v12.0 — 重構版
+-- 第一段：反封鎖 + 框架 + 工具 + Gun Mods + 靜默自瞄 + 自瞄 + 觸發
 -- ============================================================
 
 local hookmetamethod    = hookmetamethod
@@ -36,6 +36,7 @@ local CollectionService = game:GetService("CollectionService")
 local Lighting          = game:GetService("Lighting")
 local VirtualInputMgr   = game:GetService("VirtualInputManager")
 local SoundService      = game:GetService("SoundService")
+local TweenService      = game:GetService("TweenService")
 
 W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     C = W.CurrentCamera
@@ -469,9 +470,9 @@ Config = {
     ESPBoxScale = 1, ESPBox = true, ESPBoxThickness = 1,
     ESPName = true, ESPDistance = true, ESPHealth = true,
     ESPNameMode = "Display",
-    ESPBoxColor = Color3.fromRGB(255, 255, 255),
-    ESPNameColor = Color3.fromRGB(255, 255, 255),
-    ESPInfoColor = Color3.fromRGB(255, 255, 255),
+    ESPBoxColor = Color3.fromRGB(0, 229, 255),
+    ESPNameColor = Color3.fromRGB(243, 246, 250),
+    ESPInfoColor = Color3.fromRGB(174, 185, 197),
     ESPHealthColor = Color3.fromRGB(61, 224, 122),
     Rage = false,
     RageMode = "Polar",
@@ -494,6 +495,21 @@ Config = {
     RageCombatOrbitHeight = 8,
     RageCombatOrbitJitter = true,
     RagePBEyeUp = 3,
+    GVUnlockAll = false,
+    GameVisuals = false,
+    Weather = false,
+    WeatherShootingStars = false,
+    WeatherStarRate = 1,
+    SkyboxPreset = "Off",
+    SkyboxHideCelestial = false,
+    HUDWatermark = true,
+    FXHitMarker = true,
+    FXDamageNumbers = true,
+    FXKillBanner = true,
+    FXKillFeed = true,
+    FXHeadshotSpark = true,
+    FXHitFlash = true,
+    FXLowHPVignette = true,
 }
 
 local isMobile = UIS.TouchEnabled and not UIS.KeyboardEnabled
@@ -517,6 +533,10 @@ State = {
     OrbitAngle = 0,
     OrbitVantage = nil,
     OrbitVantageUntil = 0,
+    AutoQueueStatus = "-",
+    AutoQueueEnabled = false,
+    AutoQueueMode = "1v1",
+    AutoQueueRanked = false,
 }
 
 -- ============ Gun Mods ============
@@ -633,7 +653,7 @@ local function updateMuzzleFlash()
     end
 end
 
--- ============ 静默自瞄 ============
+-- ============ 靜默自瞄 ============
 local function isValidTargetSilent(player)
     if not player or player == LP then return false end
     if Config.TeamCheck and isTeammate(player) then return false end
@@ -897,7 +917,7 @@ local Aimbot = {}
         local curYaw, curPit = yawOf(look), pitchOf(look)
         if _haveCam and not _calOff then
             _gx, _nx = calibrate(wrapPi(curYaw - _lyaw), _sx, _gx, _nx, _sdx)
-            _gy, _ny = calibrate(curPit - _lpit, _sy, _gy, _ny, _sdy)
+            _gy, _ny = calibrate(curPit - _lpit), _sy, _gy, _ny, _sdy)
         end
         _lyaw, _lpit, _haveCam = curYaw, curPit, true
         _sx, _sy = 0, 0
@@ -1035,7 +1055,7 @@ local Aimbot = {}
     function Aimbot.unload() Aimbot.disable() end
 end)()
 
--- ============ 触发 ============
+-- ============ 觸發 ============
 local Trigger = {}
 do
     local _bound = false
@@ -1106,9 +1126,9 @@ do
     function Trigger.unload() Trigger.disable() end
 end
 
-print("[v12.0] 第一段载入完成")
+print("[v12.0] 第一段載入完成")
 -- ============================================================
--- 第二段：ESP + Rage 完整版
+-- 第二段：ESP（霓虹）+ Rage 完整版（Polar / Orbit）
 -- ============================================================
 
 local ESP = {}
@@ -1121,7 +1141,7 @@ local ESP = {}
     local _ctx = {}
     local BLACK = Color3.new(0, 0, 0)
     local WHITE = Color3.new(1, 1, 1)
-    local INK = Color3.fromRGB(4, 6, 10)
+    local NEON  = Color3.fromRGB(0, 229, 255)
     local HPBG = Color3.fromRGB(11, 15, 22)
     local HP_W = 3
     local HP_GAP = 5
@@ -1206,6 +1226,12 @@ local ESP = {}
         s.Parent = f
         return f, s
     end
+    local function mkCorner(parent, radius)
+        local c = Instance.new("UICorner")
+        c.CornerRadius = UDim.new(0, radius or 0)
+        c.Parent = parent
+        return c
+    end
     local function buildTree(o)
         local g = espGui(); if not g then return nil end
         local u = {}
@@ -1215,9 +1241,23 @@ local ESP = {}
         u.root = root
         u.box = mkFrame(root, 3)
         u.box.Size = UDim2.fromScale(1, 1)
-        local rMid, sMid = mkRing(u.box, 5, WHITE, 1)
+        local rMid, sMid = mkRing(u.box, 5, Config.ESPBoxColor or NEON, 1)
         u.boxStroke = sMid
+        mkCorner(u.box, 2)
         u.box.Visible = false
+        local glow = mkFrame(root, 2)
+        glow.Size = UDim2.fromScale(1, 1)
+        glow.AnchorPoint = Vector2.new(0.5, 0.5)
+        glow.Position = UDim2.fromScale(0.5, 0.5)
+        local gs = Instance.new("UIStroke")
+        gs.Color = Config.ESPBoxColor or NEON
+        gs.Thickness = 3
+        gs.Transparency = 0.85
+        gs.Parent = glow
+        mkCorner(glow, 3)
+        u.glow = glow
+        u.glowStroke = gs
+        glow.Visible = false
         local hp = mkFrame(root, 4)
         hp.AnchorPoint = Vector2.new(1, 0)
         hp.Position = UDim2.new(0, -HP_GAP, 0, 0)
@@ -1225,6 +1265,7 @@ local ESP = {}
         hp.BackgroundTransparency = 0
         hp.BackgroundColor3 = HPBG
         hp.Visible = false
+        mkCorner(hp, 2)
         u.hp = hp
         u.hpFill = mkFrame(hp, 6)
         u.hpFill.BackgroundTransparency = 0
@@ -1232,6 +1273,7 @@ local ESP = {}
         u.hpFill.AnchorPoint = Vector2.new(0, 1)
         u.hpFill.Position = UDim2.fromScale(0, 1)
         u.hpFill.Size = UDim2.fromScale(1, 1)
+        mkCorner(u.hpFill, 2)
         u.name = mkLabel(root, 7)
         u.name.AnchorPoint = Vector2.new(0.5, 1)
         u.name.Position = UDim2.new(0.5, 0, 0, -PAD)
@@ -1313,12 +1355,25 @@ local ESP = {}
             local hp, mh, frac
             pcall(function() hp, mh = getHealth(player) end)
             if hp ~= nil then frac = math.clamp((mh or 0) > 0 and hp / mh or 0, 0, 1) end
+            local distRatio = math.clamp(dist / 500, 0, 1)
+            local pulse = 0.85 + 0.15 * math.sin(tick() * 3 + (player.UserId % 100))
+            local hueShift = (tick() * 0.08 + (player.UserId % 360) / 360) % 1
+            local dynamicColor = Color3.fromHSV(hueShift, 0.85, 1)
+            local boxColor = Config.ESPBoxColor or NEON
+            if Config.ESPRainbowBox then boxColor = dynamicColor end
             if Config.ESPBox then
                 u.box.Visible = true
-                u.boxStroke.Color = Config.ESPBoxColor
+                u.boxStroke.Color = boxColor
                 u.boxStroke.Thickness = Config.ESPBoxThickness
+                u.glow.Visible = Config.ESPBoxGlow == true
+                if u.glowStroke then
+                    u.glowStroke.Color = boxColor
+                    u.glowStroke.Transparency = 0.75 + 0.15 * pulse
+                    u.glowStroke.Thickness = 3 + distRatio * 2
+                end
             else
                 u.box.Visible = false
+                u.glow.Visible = false
             end
             if Config.ESPHealth then
                 u.hp.Visible = true
@@ -1410,7 +1465,7 @@ end)()
 pcall(ESP.init)
 if Config.ESP then pcall(ESP.enable) end
 
--- ============ Rage 完整版 ============
+-- ============ Rage 完整版（Polar + Orbit）============
 local Rage = {}
 ;(function()
     local function bump(p) State.RageCharTokens[p] = (State.RageCharTokens[p] or 0) + 1 end
@@ -1875,232 +1930,88 @@ local Rage = {}
     Rage._buildShotFields = SharedEncode.buildShotFields
 end)()
 
-print("[v12.0] 第二段载入完成")
+print("[v12.0] 第二段載入完成")
 -- ============================================================
--- 第三段：GUI（Linoria）
+-- 第三段：GUI（Linoria 霓虹版）+ HUD + 外觀 + 天氣 + AutoQueue
 -- ============================================================
 
-local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
-local Library, ThemeManager, SaveManager
-local ok, err = pcall(function()
-    local files, pending = {}, 3
-    local urls = { 'Library.lua', 'addons/ThemeManager.lua', 'addons/SaveManager.lua' }
-    for i = 1, 3 do
-        task.spawn(function()
-            local got, body = pcall(function() return game:HttpGet(repo .. urls[i]) end)
-            if got and type(body) == 'string' and #body > 0 then files[i] = body end
-            pending = pending - 1
-        end)
+-- ============ AutoQueue（v11.0 路徑）============
+local AutoQueue = {}
+do
+    local RS_Q = game:GetService("ReplicatedStorage")
+    local _thread = nil
+
+    local function findJoinQueue()
+        local remotes = RS_Q:FindFirstChild("Remotes")
+        if not remotes then return nil end
+        local mm = remotes:FindFirstChild("Matchmaking")
+        if not mm then return nil end
+        local jq = mm:FindFirstChild("JoinQueue")
+        if jq and (jq:IsA("RemoteFunction") or jq:IsA("RemoteEvent")) then
+            return jq
+        end
+        return nil
     end
-    local deadline = tick() + 20
-    while pending > 0 and tick() < deadline do task.wait() end
-    for i = 1, 3 do
-        if files[i] == nil then error('failed to fetch ' .. urls[i], 0) end
-    end
-    local src = files[1]
-    local patched, n = src:gsub('if not FetchIcons then', 'if not Icons then')
-    if n > 0 then src = patched end
-    Library = loadstring(src)()
-    ThemeManager = loadstring(files[2])()
-    SaveManager = loadstring(files[3])()
-end)
-if not ok or not Library then warn("[LuaHook] Linoria load failed:", err); return end
 
-Library.IsMobile = isMobile
-Library.ShowCustomCursor = false
-pcall(function()
-    Library.MainColor = Color3.fromRGB(26, 27, 31)
-    Library.BackgroundColor = Color3.fromRGB(17, 18, 21)
-    Library.AccentColor = Color3.fromRGB(96, 165, 250)
-    Library.OutlineColor = Color3.fromRGB(43, 45, 52)
-    Library.FontColor = Color3.fromRGB(239, 241, 245)
-end)
+    local _JoinQueue = findJoinQueue()
 
-local okWin, Window = pcall(function()
-    return Library:CreateWindow({
-        Title = 'LuaHook v12.0',
-        Center = true,
-        AutoShow = false,
-        TabPadding = 8,
-        MenuFadeTime = 0.2,
-        NotifySide = 'Right',
-        Resizable = true,
-        UnlockMouseWhileOpen = true,
-    })
-end)
-if not okWin or not Window then warn("[LuaHook] GUI window failed:", Window); return end
-
-local Tabs = {
-    Combat = Window:AddTab('戰鬥'),
-    ESP = Window:AddTab('透視'),
-    Rage = Window:AddTab('狂暴'),
-    Gun = Window:AddTab('槍械'),
-    Settings = Window:AddTab('設定'),
-}
-local Options = Library.Options or {}
-local Toggles = Library.Toggles or {}
-Library.Options = Options
-Library.Toggles = Toggles
-
--- 戰鬥分頁
-do
-    local L = Tabs.Combat:AddLeftGroupbox('靜默自瞄')
-    L:AddToggle('Silent_Enabled', { Text = '啟用靜默自瞄', Default = false, Callback = function(v) Config.SilentEnabled = v end })
-        :AddKeyPicker('Silent_Key', { Text = '靜默自瞄', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true, Callback = function(state) Config.SilentEnabled = state end })
-    L:AddToggle('Silent_AutoShoot', { Text = '自動開槍', Default = false, Callback = function(v) Config.SilentAutoShoot = v end })
-    L:AddToggle('Silent_WallCheck', { Text = '牆壁檢測', Default = true, Callback = function(v) Config.SilentWallCheck = v end })
-    L:AddToggle('Silent_360', { Text = '360 度模式', Default = false, Callback = function(v) Config.Silent360 = v end })
-    L:AddDropdown('Silent_HitPart', { Text = '命中部位', Default = 'Head', Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"}, Callback = function(v) Config.SilentHitPart = v end })
-    L:AddSlider('Silent_FOV', { Text = '視野半徑', Default = 150, Min = 10, Max = 800, Rounding = 0, Compact = true, Callback = function(v) Config.SilentFOV = v end })
-    L:AddSlider('Silent_HitChance', { Text = '命中率 %', Default = 100, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) Config.SilentHitChance = v end })
-
-    local R = Tabs.Combat:AddRightGroupbox('自瞄')
-    R:AddToggle('Aimbot', { Text = '啟用自瞄', Default = false, Callback = function(v) if v then Aimbot.enable() else Aimbot.disable() end end })
-        :AddKeyPicker('AimbotKey_Picker', { Text = '自瞄', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true, Callback = function(state) if state then Aimbot.enable() else Aimbot.disable() end end })
-    R:AddDropdown('AimbotKey', { Values = {'Always','MB2','MB1','C','E','F','Q','V','X','LeftShift','LeftAlt','LeftControl'}, Default = 'MB2', Text = '啟動方式', Callback = function(v) Config.AimbotKey = v end })
-    R:AddSlider('AimbotSmoothness', { Text = '平滑度 (0=硬鎖)', Default = 0, Min = 0, Max = 100, Rounding = 0, Callback = function(v) Config.AimbotSmoothness = v end })
-    R:AddSlider('AimbotFOVDeg', { Text = '視野 度', Default = 20, Min = 1, Max = 180, Rounding = 1, Callback = function(v) Config.AimbotFOVDeg = v end })
-    R:AddDropdown('AimbotTargetPart', { Values = {'Best','Head','Torso','Closest'}, Default = 'Best', Text = '目標骨骼', Callback = function(v) Config.AimbotTargetPart = v end })
-    R:AddToggle('AimbotVisCheck', { Text = '可見性檢測', Default = true, Callback = function(v) Config.AimbotVisCheck = v end })
-
-    local TB = Tabs.Combat:AddRightGroupbox('觸發機器人')
-    TB:AddToggle('Trigger', { Text = '啟用觸發', Default = false, Callback = function(v) if v then Trigger.enable() else Trigger.disable() end end })
-    TB:AddDropdown('TriggerKey', { Values = {'Always','MB2','MB1','C','E','F','Q','V','X','LeftShift','LeftAlt','LeftControl'}, Default = 'Always', Text = '啟動方式', Callback = function(v) Config.TriggerKey = v end })
-    TB:AddToggle('TriggerHeadOnly', { Text = '只打頭', Default = false, Callback = function(v) Config.TriggerHeadOnly = v end })
-
-    local T = Tabs.Combat:AddLeftGroupbox('目標選擇')
-    T:AddToggle('TeamCheck', { Text = '隊伍檢測', Default = true, Callback = function(v) Config.TeamCheck = v end })
-end
-
--- 透視分頁
-do
-    local L = Tabs.ESP:AddLeftGroupbox('透視 & 方框')
-    L:AddToggle('ESP', { Text = '啟用透視', Default = true, Callback = function(v) if v then ESP.enable() else ESP.disable() end end })
-    L:AddToggle('ESPTeamCheck', { Text = '隊伍檢測', Default = true, Callback = function(v) Config.ESPTeamCheck = v end })
-    L:AddToggle('ESPBox', { Text = '方框', Default = true, Callback = function(v) Config.ESPBox = v end })
-    L:AddSlider('ESPBoxThickness', { Text = '方框粗細', Default = 1, Min = 1, Max = 4, Rounding = 0, Callback = function(v) Config.ESPBoxThickness = math.floor(v) end })
-    L:AddSlider('ESPBoxScale', { Text = '方框大小', Default = 1, Min = 0.6, Max = 1.6, Rounding = 2, Callback = function(v) Config.ESPBoxScale = v end })
-    L:AddToggle('ESPHealth', { Text = '血條', Default = true, Callback = function(v) Config.ESPHealth = v end })
-    local R = Tabs.ESP:AddRightGroupbox('文字')
-    R:AddToggle('ESPName', { Text = '玩家名字', Default = true, Callback = function(v) Config.ESPName = v end })
-    R:AddDropdown('ESPNameMode', { Values = {'Display','Username'}, Default = 'Display', Text = '名字來源', Callback = function(v) Config.ESPNameMode = v end })
-    R:AddToggle('ESPDistance', { Text = '距離', Default = true, Callback = function(v) Config.ESPDistance = v end })
-    R:AddSlider('ESPTextSize', { Text = '名字大小', Default = 14, Min = 9, Max = 24, Rounding = 0, Callback = function(v) Config.ESPTextSize = math.floor(v) end })
-    R:AddLabel('名字顏色'):AddColorPicker('ESPNameColor', { Default = Config.ESPNameColor, Callback = function(v) Config.ESPNameColor = v end })
-    R:AddLabel('方框顏色'):AddColorPicker('ESPBoxColor', { Default = Config.ESPBoxColor, Callback = function(v) Config.ESPBoxColor = v end })
-end
-
--- 狂暴分頁
-do
-    local RageTab = Tabs.Rage
-    local CORE = RageTab:AddLeftGroupbox('核心')
-    CORE:AddToggle('Rage_Enabled', { Text = '啟用狂暴', Default = false, Callback = function(v) if v then Rage.enable() else Rage.disable() end end })
-        :AddKeyPicker('Rage_Key', { Text = '狂暴', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true, Callback = function(state) if state then Rage.enable() else Rage.disable() end end })
-    CORE:AddDropdown('RageMode', { Values = {'Polar','Orbit'}, Default = 'Polar', Text = '狂暴模式', Callback = function(v) Config.RageMode = v; if Config.Rage then Rage.enable() end end })
-    CORE:AddToggle('Rage_HPPriority', { Text = '優先低血量目標', Default = true, Callback = function(v) Config.RageHPPriority = v end })
-    CORE:AddDivider('引擎')
-    CORE:AddDropdown('Rage_VoidDepth', { Values = {'shallow','deep'}, Default = 'deep', Text = '躲藏深度', Callback = function(v) Config.RageVoidDepth = v end })
-    CORE:AddDropdown('Rage_RestoreMode', { Values = {'auto','none','render','kerp'}, Default = 'auto', Text = '傳送模式', Callback = function(v) Config.RageRestoreMode = v end })
-
-    local ORBIT = RageTab:AddLeftGroupbox('繞圈專屬')
-    ORBIT:AddSlider('RageCombatOrbitRadius', { Text = '繞圈半徑', Default = 60, Min = 20, Max = 380, Rounding = 0, Callback = function(v) Config.RageCombatOrbitRadius = v end })
-    ORBIT:AddSlider('RageOrbitDwell', { Text = '停留時間', Default = 0.30, Min = 0.10, Max = 0.60, Rounding = 2, Callback = function(v) Config.RageOrbitDwell = v end })
-    ORBIT:AddSlider('RageCombatOrbitHeight', { Text = '繞圈高度', Default = 8, Min = 0, Max = 40, Rounding = 0, Callback = function(v) Config.RageCombatOrbitHeight = v end })
-    ORBIT:AddToggle('RageCombatOrbitJitter', { Text = '垂直抖動', Default = true, Callback = function(v) Config.RageCombatOrbitJitter = v end })
-    ORBIT:AddSlider('RagePBEyeUp', { Text = '眼睛高度', Default = 3, Min = 1, Max = 12, Rounding = 0, Callback = function(v) Config.RagePBEyeUp = v end })
-
-    local WEP = RageTab:AddRightGroupbox('武器')
-    WEP:AddDropdown('Rage_OnEmpty', { Values = {'Swap','Reload'}, Default = 'Swap', Text = '彈藥耗盡時', Callback = function(v) Config.RageOnEmpty = v end })
-    WEP:AddDropdown('Rage_PreferredSlot', { Values = {'Primary','Secondary','Melee'}, Default = 'Primary', Text = '偏好欄位', Callback = function(v) Config.RagePreferredSlot = v end })
-    WEP:AddSlider('Rage_Taps', { Text = '每次開火發數', Default = 6, Min = 1, Max = 8, Rounding = 0, Compact = true, Callback = function(v) Config.RageTaps = v end })
-    WEP:AddSlider('Rage_TapsPerFrame', { Text = '每幀發數', Default = 1, Min = 1, Max = 6, Rounding = 0, Compact = true, Callback = function(v) Config.RageTapsPerFrame = v end })
-    WEP:AddSlider('Rage_EyeMuzzleSep', { Text = '眼-口分離', Default = 0.07, Min = 0, Max = 1, Rounding = 2, Compact = true, Callback = function(v) Config.RageEyeMuzzleSep = v end })
-
-    local MELEE = RageTab:AddRightGroupbox('近戰')
-    MELEE:AddToggle('Rage_KnifeBot', { Text = '小刀機器人', Default = true, Callback = function(v) Config.RageKnifeBot = v end })
-end
-
--- 槍械分頁
-do
-    local G = Tabs.Gun:AddLeftGroupbox('槍械修改')
-    G:AddToggle('Gun_NoCooldown', { Text = '無冷卻', Default = false, Callback = function(v) Config.NoCooldown = v end })
-    G:AddToggle('Gun_NoSpread', { Text = '無散射', Default = false, Callback = function(v) Config.NoSpread = v end })
-    G:AddToggle('Gun_NoRecoil', { Text = '無後座', Default = false, Callback = function(v) Config.NoRecoil = v end })
-    G:AddToggle('Gun_MaxAccuracy', { Text = '最大精準', Default = false, Callback = function(v) Config.MaxAccuracy = v end })
-    G:AddToggle('Gun_RapidAttack', { Text = '快速攻擊（近戰）', Default = false, Callback = function(v) Config.RapidAttack = v end })
-    G:AddToggle('Gun_NoMuzzleFlash', { Text = '無槍口火光', Default = false, Callback = function(v) Config.NoMuzzleFlash = v; updateMuzzleFlash() end })
-end
-
--- 設定分頁
-do
-    local L = Tabs.Settings:AddLeftGroupbox('選單')
-    L:AddDropdown('GUIToggleKey', {
-        Values = {'RightShift','LeftShift','RightControl','LeftControl','RightAlt','LeftAlt','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12','Insert','Delete','Home','End','PageUp','PageDown','CapsLock','Tab'},
-        Default = 'RightShift', Text = '介面開關鍵', Callback = function() end
-    })
-    L:AddButton({ Text = '卸載腳本 (需雙擊)', DoubleClick = true, Func = function()
-        pcall(function()
-            if getgenvFn().__LH_restoreAllHooks then
-                getgenvFn().__LH_restoreAllHooks()
+    function AutoQueue.join(mode, ranked)
+        if not _JoinQueue then _JoinQueue = findJoinQueue() end
+        if not _JoinQueue then
+            State.AutoQueueStatus = "JoinQueue not found"
+            return false, "no remote"
+        end
+        local ok, err = pcall(function()
+            if ranked then
+                _JoinQueue:InvokeServer(mode, true)
+            else
+                _JoinQueue:InvokeServer(mode)
             end
         end)
-        pcall(function() ESP.unload() end)
-        pcall(function() Aimbot.unload() end)
-        pcall(function() Trigger.unload() end)
-        pcall(function() Rage.unload() end)
-        if muzzleFlashConn then muzzleFlashConn:Disconnect() end
-        if shared._LH_GunOrig and GunModule then
-            if setreadonly then pcall(setreadonly, GunModule, false) end
-            GunModule.StartShooting = shared._LH_GunOrig
+        if ok then
+            State.AutoQueueStatus = "Joined (" .. tostring(mode) .. ")"
+            return true
         end
-        if shared._LH_SpreadOrig and GameplayUtility then
-            if setreadonly then pcall(setreadonly, GameplayUtility, false) end
-            GameplayUtility.GetSpread = shared._LH_SpreadOrig
+        local msg = tostring(err)
+        if msg:lower():find("already in queue") then
+            State.AutoQueueStatus = "Already in queue"
+            return true
         end
-        if shared._LH_MeleeOrig and MeleeModule then
-            if setreadonly then pcall(setreadonly, MeleeModule, false) end
-            MeleeModule.StartShooting = shared._LH_MeleeOrig
+        State.AutoQueueStatus = "Failed"
+        return false, msg
+    end
+
+    local function loop()
+        task.wait(Config.AutoQueueDelay or 2)
+        while State.AutoQueueEnabled do
+            local ok = AutoQueue.join(State.AutoQueueMode, State.AutoQueueRanked)
+            if not ok then
+                State.AutoQueueEnabled = false
+                break
+            end
+            task.wait(2)
         end
-        Library:Unload()
-        _G["\76\72"] = nil
-    end })
-    UIS.InputBegan:Connect(function(input, gpe)
-        if gpe then return end
-        local kp = Options.GUIToggleKey
-        if kp and kp.Value and kp.Value ~= 'None'
-           and Enum.KeyCode[kp.Value] and input.KeyCode == Enum.KeyCode[kp.Value] then
-            pcall(function() Library:Toggle() end)
-        end
-    end)
+        _thread = nil
+    end
+
+    function AutoQueue.start(mode, ranked, delay)
+        State.AutoQueueMode = mode or State.AutoQueueMode or "1v1"
+        State.AutoQueueRanked = ranked == true
+        Config.AutoQueueDelay = delay or Config.AutoQueueDelay or 2
+        State.AutoQueueEnabled = true
+        if _thread then return end
+        _thread = task.spawn(loop)
+    end
+
+    function AutoQueue.stop()
+        State.AutoQueueEnabled = false
+        State.AutoQueueStatus = "Stopped"
+    end
 end
 
-task.spawn(function()
-    pcall(function()
-        ThemeManager:SetLibrary(Library)
-        SaveManager:SetLibrary(Library)
-        SaveManager:IgnoreThemeSettings()
-        SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
-        ThemeManager:SetFolder('v3hub')
-        SaveManager:SetFolder('v3hub/rivals')
-        SaveManager:BuildConfigSection(Tabs.Settings)
-        ThemeManager:ApplyToTab(Tabs.Settings)
-        SaveManager:LoadAutoloadConfig()
-    end)
-end)
-
-pcall(Rage.init)
-
-Library:Notify('v12.0 完整版載入完成', 4)
-_G["\76\72"] = Library
-print("[v12.0] 完整版載入完成")
--- ============================================================
--- 第四段：HUD + 遊戲外觀 + 天氣（Linoria 版）
--- ============================================================
-
--- ============ HUD / 命中回饋 ============
+-- ============ HUD / 命中回饋（霓虹版）============
 local HUDPlus = {}
 do
-    local hasDrawing = false
     local SoundService = game:GetService("SoundService")
     local StatsService = game:GetService("Stats")
     local C_GREY   = Color3.fromRGB(200, 200, 200)
@@ -2109,16 +2020,15 @@ do
     local C_RED    = Color3.fromRGB(255, 59, 78)
     local C_SCREENRED = Color3.fromRGB(194, 30, 47)
     local C_BLACK  = Color3.new(0, 0, 0)
+    local C_NEON   = Color3.fromRGB(0, 229, 255)
     local C_GOLD   = Color3.fromRGB(255, 194, 75)
     local C_FILL   = Color3.fromRGB(13, 18, 25)
-    local C_HPBG   = Color3.fromRGB(11, 15, 22)
     local C_TEXT2  = Color3.fromRGB(174, 185, 197)
     local WHITE    = Color3.new(1, 1, 1)
     local _started = false
     local _updConn, _gui = nil, nil
     local _hmLines, _hmLinesBlk = nil, nil
     local _hm = { on = false, t0 = 0, pop = 0, color = WHITE }
-    local _snds, _sndIdx, _sndLastT = nil, 1, 0
     local _dnPool, _dnActive, _dnByPlr = nil, {}, {}
     local _kbL1, _kbL2, _kbRing = nil, nil, nil
     local _kb = { on = false, t0 = 0, streak = 0, lastKillT = 0, line1 = "", line2 = "" }
@@ -2131,14 +2041,13 @@ do
     local _vgHP, _vgLastPoll = 1, 0
     local _hcConn, _charConn, _lastHP = nil, nil, nil
     local _wmBg, _wmAccent, _wmText = nil, nil, nil
-    local _wm = { fps = 60, ping = 0, pingT = 0, str = "", strT = 0, bw = nil, pw = 60 }
+    local _wm = { fps = 60, ping = 0, pingT = 0, str = "", strT = 0, bw = nil, lastT = tick() }
     local _sessKills, _sessT0 = 0, tick()
-    local _kfTicks = nil
 
     local function ensureGui()
         if _gui and _gui.Parent then return _gui end
         local g = Instance.new("ScreenGui")
-        g.Name = "_vs_fx"
+        g.Name = "_vs_fx_" .. tostring(math.random(1e4, 1e5))
         g.IgnoreGuiInset = true
         g.ResetOnSpawn = false
         g.DisplayOrder = 999
@@ -2154,7 +2063,7 @@ do
         if _dnPool then return end
         local g = ensureGui()
         local fr = Instance.new("Frame")
-        fr.Name = "_fl"; fr.BackgroundColor3 = C_SCREENRED; fr.BackgroundTransparency = 1
+        fr.BackgroundColor3 = C_SCREENRED; fr.BackgroundTransparency = 1
         fr.BorderSizePixel = 0; fr.Size = UDim2.new(1, 0, 1, 0); fr.Visible = false
         fr.ZIndex = 1; fr.Parent = g
         _flashFrame = fr
@@ -2167,7 +2076,7 @@ do
         }
         for i, s in ipairs(SIDES) do
             local f = Instance.new("Frame")
-            f.Name = "_vg" .. i; f.BackgroundColor3 = C_SCREENRED; f.BackgroundTransparency = 1
+            f.BackgroundColor3 = C_SCREENRED; f.BackgroundTransparency = 1
             f.BorderSizePixel = 0; f.Size = s.size; f.Position = s.pos; f.Visible = false
             f.ZIndex = 2
             local grad = Instance.new("UIGradient")
@@ -2211,7 +2120,7 @@ do
         end
         _kbL1 = Instance.new("TextLabel")
         _kbL1.BackgroundTransparency = 1
-        _kbL1.TextColor3 = WHITE
+        _kbL1.TextColor3 = C_NEON
         _kbL1.Font = Enum.Font.Code
         _kbL1.TextSize = 12
         _kbL1.TextStrokeTransparency = 0
@@ -2241,7 +2150,7 @@ do
         _kbRing.Visible = false
         _kbRing.Parent = g
         local uc = Instance.new("UICorner"); uc.CornerRadius = UDim.new(1, 0); uc.Parent = _kbRing
-        local ust = Instance.new("UIStroke"); ust.Thickness = 2; ust.Color = C_GOLD; ust.Parent = _kbRing
+        local ust = Instance.new("UIStroke"); ust.Thickness = 2; ust.Color = C_NEON; ust.Parent = _kbRing
         _kfPool = {}
         for i = 1, 5 do
             local t = Instance.new("TextLabel")
@@ -2270,7 +2179,7 @@ do
         _hsLines = {}
         for i = 1, 6 do
             local l = Instance.new("Frame")
-            l.BackgroundColor3 = C_GOLD; l.BorderSizePixel = 0
+            l.BackgroundColor3 = C_NEON; l.BorderSizePixel = 0
             l.AnchorPoint = Vector2.new(0.5, 0.5); l.Visible = false
             l.Parent = g
             _hsLines[i] = l
@@ -2282,6 +2191,14 @@ do
         _wmBg.Size = UDim2.fromOffset(60, 24)
         _wmBg.Visible = false
         _wmBg.Parent = g
+        local wmCorner = Instance.new("UICorner"); wmCorner.CornerRadius = UDim.new(0, 4); wmCorner.Parent = _wmBg
+        _wmAccent = Instance.new("Frame")
+        _wmAccent.BackgroundColor3 = C_NEON
+        _wmAccent.BorderSizePixel = 0
+        _wmAccent.Size = UDim2.new(0, 3, 1, 0)
+        _wmAccent.Position = UDim2.new(0, 0, 0, 0)
+        _wmAccent.Parent = _wmBg
+        local ac = Instance.new("UICorner"); ac.CornerRadius = UDim.new(0, 2); ac.Parent = _wmAccent
         _wmText = Instance.new("TextLabel")
         _wmText.BackgroundTransparency = 1
         _wmText.TextColor3 = WHITE
@@ -2310,14 +2227,6 @@ do
         _wm.stats.Position = UDim2.fromOffset(100, 22)
         _wm.stats.Visible = false
         _wm.stats.Parent = g
-        _snds = {}
-        for i = 1, 4 do
-            local s = Instance.new("Sound")
-            s.Name = "_fxs" .. i
-            s.Volume = 0.5
-            s.Parent = SoundService
-            _snds[i] = s
-        end
     end
 
     local function triggerHitMarker(crit, lethal)
@@ -2329,8 +2238,7 @@ do
             _hm.pop = 0
         end
         _hm.on = true; _hm.t0 = now
-        _hm.color = lethal and Color3.fromRGB(255, 64, 78)
-            or (crit and Color3.fromRGB(255, 194, 75) or WHITE)
+        _hm.color = lethal and C_RED or (crit and C_GOLD or WHITE)
     end
 
     local function pushDamageNumber(p, dmg, crit, lethal, hitPos)
@@ -2395,7 +2303,6 @@ do
 
     local DIAG = { Vector2.new(1, 1), Vector2.new(-1, 1), Vector2.new(1, -1), Vector2.new(-1, -1) }
     local INV_SQ2 = 0.70710678
-    local PLUS = { Vector2.new(0, -1), Vector2.new(1, 0), Vector2.new(0, 1), Vector2.new(-1, 0) }
 
     local function hideMarker()
         _hm.on = false
@@ -2628,6 +2535,9 @@ do
                 _wmBg.Size = UDim2.fromOffset(10 + bw + 12 + (bw + 12) + 10, 24)
                 _wmBg.Visible = true
             end
+            if _wmAccent then
+                _wmAccent.BackgroundColor3 = Color3.fromHSV((now * 0.15) % 1, 0.85, 1)
+            end
         elseif _wmText then
             _wmText.Visible = false
             if _wm.stats then _wm.stats.Visible = false end
@@ -2741,127 +2651,7 @@ task.spawn(function()
     end
 end)
 
-print("[v12.0] 第四段-1 载入完成")
--- ============================================================
--- 第四段-2：游戏外观 + 天气（Linoria 版）
--- ============================================================
-
--- ============ 游戏外观（GameVisuals）============
-local GameVisuals = {}
-do
-    local NONE_COSMETIC   = "NONE_COSMETIC"
-    local RANDOM_COSMETIC = "RANDOM_COSMETIC"
-    local _log = {}
-    local function note(msg)
-        table.insert(_log, os.date("%H:%M:%S") .. "  " .. msg)
-        if #_log > 60 then table.remove(_log, 1) end
-    end
-    GameVisuals.Choices = {}
-    local _spoof = {}
-    local _favOverride = {}
-    local _maskTarget, _maskInner = nil, nil
-    local _maskConn = nil
-
-    local function maskActive()
-        if _maskTarget == nil then return false end
-        return true
-    end
-    local function maskRemove()
-        if _maskTarget == nil then return end
-        local target, inner = _maskTarget, _maskInner
-        _maskTarget, _maskInner = nil, nil
-        pcall(function() rawset(target, "Data", inner) end)
-    end
-    local function everyCosmetic(real)
-        local out = {}
-        if type(real) == "table" then
-            for k, v in pairs(real) do out[k] = v end
-        end
-        pcall(function()
-            local cos = Rivals.Cosmetics and Rivals.Cosmetics.Cosmetics
-            if type(cos) ~= "table" then return end
-            for name in pairs(cos) do
-                if out[name] == nil then out[name] = true end
-            end
-        end)
-        return out
-    end
-    local function maskNeeded()
-        return Config.GVUnlockAll == true
-    end
-    local function syncMask()
-        maskRemove()
-        if not maskNeeded() then return end
-        local ok = pcall(function()
-            local PDC = loadGameModule(LP.PlayerScripts, {"Controllers","PlayerDataController"})
-            if not PDC then return end
-            local cur = PDC.CurrentData
-            if cur == nil then return end
-            local inner = rawget(cur, "Data")
-            if type(inner) ~= "table" then return end
-            local proxy = setmetatable({}, {
-                __index = function(_, k)
-                    local p = _spoof[k]
-                    if p ~= nil then return p(inner[k]) end
-                    return inner[k]
-                end,
-                __newindex = function(_, k, v) inner[k] = v end,
-            })
-            rawset(cur, "Data", proxy)
-            _maskTarget, _maskInner = cur, inner
-        end)
-    end
-
-    function GameVisuals.setUnlockAll(on)
-        Config.GVUnlockAll = (on == true)
-        _spoof.CosmeticInventory = on and everyCosmetic or nil
-        syncMask()
-        note("解锁全部 " .. tostring(on))
-    end
-    function GameVisuals.enable()
-        Config.GameVisuals = true
-        pcall(syncMask)
-        note("启用")
-    end
-    function GameVisuals.disable()
-        Config.GameVisuals = false
-        maskRemove()
-        GameVisuals.Choices = {}
-        _favOverride = {}
-        _spoof.CosmeticInventory = nil
-        note("关闭")
-    end
-    function GameVisuals.restore()
-        GameVisuals.disable()
-    end
-    function GameVisuals.summary() return _log end
-    function GameVisuals.ready() return maskActive() end
-    function GameVisuals.playEmote(name) end
-    function GameVisuals.emoteList() return {"None"} end
-    function GameVisuals.setWeapon(v) end
-    function GameVisuals.setSkin(v) end
-    function GameVisuals.setCharm(v) end
-    function GameVisuals.setWrap(v) end
-    function GameVisuals.setFinisher(v) end
-    function GameVisuals.setWrapInverted(v) end
-    function GameVisuals.applyRankedCharm(a, b) end
-    function GameVisuals.refreshRankCharmMeta() end
-    function GameVisuals.syncEmotes(v) end
-    function GameVisuals.weaponList() return {"None"} end
-    function GameVisuals.skinList() return {"None"} end
-    function GameVisuals.charmList() return {"None"} end
-    function GameVisuals.wrapList() return {"None"} end
-    function GameVisuals.finisherList() return {"None"} end
-    function GameVisuals.rankNames() return {"Bronze 1"} end
-    function GameVisuals.rankedCharmsFor() return {"Held weapon"} end
-    function GameVisuals.lastWeapon() return nil end
-    GameVisuals.uiAlive = true
-end
--- ============================================================
--- 第四段-2：游戏外观 + 精简天气（流星雨 + 天空盒）
--- ============================================================
-
--- ============ 游戏外观（GameVisuals）============
+-- ============ 遊戲外觀（GameVisuals 單一定義）============
 local GameVisuals = {}
 do
     local _log = {}
@@ -2929,13 +2719,13 @@ do
             _spoof.CosmeticInventory = nil
         end
         syncMask()
-        note("解锁全部 " .. tostring(on))
+        note("解鎖全部 " .. tostring(on))
     end
 
     function GameVisuals.enable()
         Config.GameVisuals = true
         pcall(syncMask)
-        note("启用")
+        note("啟用")
     end
 
     function GameVisuals.disable()
@@ -2943,37 +2733,16 @@ do
         maskRemove()
         GameVisuals.Choices = {}
         _spoof.CosmeticInventory = nil
-        note("关闭")
+        note("關閉")
     end
 
-    function GameVisuals.restore()
-        GameVisuals.disable()
-    end
+    function GameVisuals.restore() GameVisuals.disable() end
     function GameVisuals.summary() return _log end
     function GameVisuals.ready() return _maskTarget ~= nil end
-    function GameVisuals.playEmote(name) end
-    function GameVisuals.emoteList() return {"None"} end
-    function GameVisuals.setWeapon(v) end
-    function GameVisuals.setSkin(v) end
-    function GameVisuals.setCharm(v) end
-    function GameVisuals.setWrap(v) end
-    function GameVisuals.setFinisher(v) end
-    function GameVisuals.setWrapInverted(v) end
-    function GameVisuals.applyRankedCharm(a, b) end
-    function GameVisuals.refreshRankCharmMeta() end
-    function GameVisuals.syncEmotes(v) end
-    function GameVisuals.weaponList() return {"None"} end
-    function GameVisuals.skinList() return {"None"} end
-    function GameVisuals.charmList() return {"None"} end
-    function GameVisuals.wrapList() return {"None"} end
-    function GameVisuals.finisherList() return {"None"} end
-    function GameVisuals.rankNames() return {"Bronze 1"} end
-    function GameVisuals.rankedCharmsFor() return {"Held weapon"} end
-    function GameVisuals.lastWeapon() return nil end
     GameVisuals.uiAlive = true
 end
 
--- ============ 天气（流星雨 + 天空盒）============
+-- ============ 天氣（流星雨 + 天空盒）============
 local Weather = {}
 do
     local Vec = Vector3.new
@@ -3190,42 +2959,6 @@ do
             pickCls(pi), pi, base.Y + FLOOR_H)
     end
 
-    local function spawnShower()
-        local cam = C
-        if not cam then return end
-        local base = cam.CFrame.Position
-        local floorY = base.Y + FLOOR_H
-        local raz = viewAz(cam) + (math.random() - 0.5) * 0.9
-        local rel = math.rad(36 + math.random() * 16)
-        local cr = math.cos(rel)
-        local rv = Vec(cr * math.cos(raz), math.sin(rel), cr * math.sin(raz))
-        local dn = (Vec(0, -1, 0) + rv * rv.Y).Unit
-        local sd = rv:Cross(dn).Unit
-        local pi = pickPal()
-        local t = 0
-        for _ = 1, 3 + math.random(0, 2) do
-            t = t + 0.16 + math.random() * 0.42
-            task.delay(t, function()
-                if not Config.WeatherShootingStars then return end
-                local phi = (math.random() - 0.5) * 2.8
-                local off = dn * math.cos(phi) + sd * math.sin(phi)
-                local th = math.rad(9 + math.random() * 24)
-                local ct, st = math.cos(th), math.sin(th)
-                local u = (rv * ct + off * st).Unit
-                if u.Y < MIN_SIN then
-                    off = -off
-                    u = (rv * ct + off * st).Unit
-                end
-                if u.Y < MIN_SIN then return end
-                local ci = 2
-                if th < 0.22 then ci = 1
-                elseif th > 0.44 then ci = 3 end
-                pcall(spawnStreak, base + u * (215 + math.random() * 75),
-                    (off * ct - rv * st).Unit, ci, pi, floorY)
-            end)
-        end
-    end
-
     local function stepStars(now)
         for i = #_starLive, 1, -1 do
             local s = _starLive[i]
@@ -3263,15 +2996,11 @@ do
             if now >= _starNextT then
                 local r = math.clamp(Config.WeatherStarRate or 1, 0.25, 3)
                 _starNextT = now + (5 + math.random() * 6) / r
-                if math.random() < math.min(0.06 * r, 0.35) then
-                    pcall(spawnShower)
-                else
-                    pcall(spawnSingle)
-                    if math.random() < math.min(0.22 * r, 0.6) then
-                        task.delay(0.3 + math.random() * 0.5, function()
-                            pcall(spawnSingle)
-                        end)
-                    end
+                pcall(spawnSingle)
+                if math.random() < math.min(0.22 * r, 0.6) then
+                    task.delay(0.3 + math.random() * 0.5, function()
+                        pcall(spawnSingle)
+                    end)
                 end
             end
             pcall(stepStars, now)
@@ -3300,6 +3029,7 @@ do
     Weather.SkyboxOrder = { "Off", "Space", "Sunset", "Clouds", "Storm", "Winter", "Vaporwave" }
     local _sky, _skyConn = nil, nil
     local _origSkies = {}
+
     local function hideMapSkies()
         for _, c in ipairs(Lighting:GetChildren()) do
             if c:IsA("Sky") and not c:GetAttribute("WX_Custom") then
@@ -3413,20 +3143,6 @@ do
         stopSkyGuard()
     end
 
-    function Weather.setType(name) Config.WeatherType = name end
-    function Weather.setIntensity(v) Config.WeatherIntensity = v end
-    function Weather.setSoundVolume(v) Config.WeatherSoundVolume = v end
-    function Weather.toggleStorm(on) Config.WeatherStorm = on end
-    function Weather.toggleMood(on) Config.WeatherMood = on end
-    function Weather.toggleMeteors(on) Config.WeatherMeteors = on end
-    function Weather.toggleClock(on) Config.WeatherClockDial = on end
-    function Weather.togglePuddles(on) Config.WeatherPuddles = on end
-    function Weather.toggleGodRays(on) Config.WeatherGodRays = on end
-    function Weather.toggleRainbow(on) Config.WeatherRainbow = on end
-    function Weather.setStormMin(v) Config.WeatherStormMin = v end
-    function Weather.setStormVar(v) Config.WeatherStormVar = v end
-    function Weather.setMeteorRate(v) Config.WeatherMeteorRate = v end
-
     function Weather.init()
         if Config.Weather then Weather.enableWeather() end
     end
@@ -3435,98 +3151,287 @@ do
     end
 end
 
--- ============ 新分页（介面 + 外观 + 天气）============
-task.spawn(function()
-    task.wait(1)
-    if not Window then return end
-    local HUDTab = Window:AddTab('介面')
-    local GameTab = Window:AddTab('外觀')
-    local WXTab = Window:AddTab('天氣')
-
-    do
-        local M = HUDTab:AddLeftGroupbox('主控')
-        M:AddToggle('HUD_Enabled', {
-            Text = '啟用介面',
-            Default = true,
-            Callback = function(v)
-                if v then HUDPlus.start() else HUDPlus.stop() end
-            end
-        })
-        M:AddToggle('HUD_Watermark', {
-            Text = '浮水印',
-            Default = true,
-            Callback = function(v) Config.HUDWatermark = v end
-        })
-
-        local F = HUDTab:AddRightGroupbox('命中回饋')
-        F:AddToggle('FX_HitMarker', { Text = '命中標記', Default = true, Callback = function(v) Config.FXHitMarker = v end })
-        F:AddToggle('FX_DamageNumbers', { Text = '傷害數字', Default = true, Callback = function(v) Config.FXDamageNumbers = v end })
-        F:AddToggle('FX_KillBanner', { Text = '擊殺橫幅', Default = true, Callback = function(v) Config.FXKillBanner = v end })
-        F:AddToggle('FX_KillFeed', { Text = '擊殺訊息', Default = true, Callback = function(v) Config.FXKillFeed = v end })
-        F:AddToggle('FX_HeadshotSpark', { Text = '爆頭火花', Default = true, Callback = function(v) Config.FXHeadshotSpark = v end })
-        F:AddToggle('FX_HitFlash', { Text = '受擊紅閃', Default = true, Callback = function(v) Config.FXHitFlash = v end })
-        F:AddToggle('FX_LowHPVignette', { Text = '低血暗角', Default = true, Callback = function(v) Config.FXLowHPVignette = v end })
+-- ============ Linoria GUI（霓虹暗色主題）============
+local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
+local Library, ThemeManager, SaveManager
+local ok, err = pcall(function()
+    local files, pending = {}, 3
+    local urls = { 'Library.lua', 'addons/ThemeManager.lua', 'addons/SaveManager.lua' }
+    for i = 1, 3 do
+        task.spawn(function()
+            local got, body = pcall(function() return game:HttpGet(repo .. urls[i]) end)
+            if got and type(body) == 'string' and #body > 0 then files[i] = body end
+            pending = pending - 1
+        end)
     end
-
-    do
-        local L = GameTab:AddLeftGroupbox('外觀')
-        L:AddToggle('GV_Enabled', {
-            Text = '啟用',
-            Default = false,
-            Callback = function(v)
-                if v then GameVisuals.enable() else GameVisuals.disable() end
-            end
-        })
-        local D = L:AddDependencyBox()
-        D:AddToggle('GV_UnlockAll', {
-            Text = '解鎖全部',
-            Default = false,
-            Callback = function(v) GameVisuals.setUnlockAll(v) end
-        })
-        D:SetupDependencies({ { Toggles.GV_Enabled, true } })
-        L:AddButton({
-            Text = '重置全部',
-            Func = function() pcall(GameVisuals.restore) end
-        })
+    local deadline = tick() + 20
+    while pending > 0 and tick() < deadline do task.wait() end
+    for i = 1, 3 do
+        if files[i] == nil then error('failed to fetch ' .. urls[i], 0) end
     end
+    local src = files[1]
+    local patched, n = src:gsub('if not FetchIcons then', 'if not Icons then')
+    if n > 0 then src = patched end
+    Library = loadstring(src)()
+    ThemeManager = loadstring(files[2])()
+    SaveManager = loadstring(files[3])()
+end)
+if not ok or not Library then warn("[LuaHook] Linoria load failed:", err); return end
 
-    do
-        local L = WXTab:AddLeftGroupbox('天氣')
-        L:AddToggle('WX_Enabled', {
-            Text = '啟用',
-            Default = false,
-            Callback = function(v)
-                if v then Weather.enableWeather() else Weather.disableWeather() end
-            end
-        })
-        local D = L:AddDependencyBox()
-        D:AddToggle('WX_Stars', {
-            Text = '流星雨',
-            Default = false,
-            Callback = function(v) Weather.toggleShootingStars(v) end
-        })
-        D:AddSlider('WX_StarRate', {
-            Text = '流星雨頻率',
-            Default = 1,
-            Min = 0.25, Max = 3, Rounding = 2,
-            Callback = function(v) Weather.setStarRate(v) end
-        })
-        D:AddDivider('天空')
-        D:AddDropdown('WX_Sky', {
-            Values = {'Off','Space','Sunset','Clouds','Storm','Winter','Vaporwave'},
-            Default = 'Off',
-            Text = '天空盒',
-            Callback = function(v) Weather.setSkybox(v) end
-        })
-        D:AddToggle('WX_HideCelestial', {
-            Text = '隱藏天體',
-            Default = false,
-            Callback = function(v) Weather.toggleCelestial(v) end
-        })
-        D:SetupDependencies({ { Toggles.WX_Enabled, true } })
-    end
+Library.IsMobile = isMobile
+Library.ShowCustomCursor = false
+
+-- 霓虹暗色主題
+pcall(function()
+    Library.MainColor        = Color3.fromRGB(16, 18, 24)
+    Library.BackgroundColor  = Color3.fromRGB(10, 12, 16)
+    Library.AccentColor      = Color3.fromRGB(0, 229, 255)
+    Library.OutlineColor     = Color3.fromRGB(35, 40, 50)
+    Library.FontColor        = Color3.fromRGB(236, 240, 246)
 end)
 
-Library:Notify('v12.0 第四段載入完成', 4)
-print("[v12.0] 第四段-2 載入完成")
-print("[v12.0] 全部載入完成")
+local okWin, Window = pcall(function()
+    return Library:CreateWindow({
+        Title = 'LuaHook v12.0',
+        Center = true,
+        AutoShow = false,
+        TabPadding = 8,
+        MenuFadeTime = 0.25,
+        NotifySide = 'Right',
+        Resizable = true,
+        UnlockMouseWhileOpen = true,
+    })
+end)
+if not okWin or not Window then warn("[LuaHook] GUI window failed:", Window); return end
+
+local Tabs = {
+    Combat   = Window:AddTab('戰鬥'),
+    ESP      = Window:AddTab('透視'),
+    Rage     = Window:AddTab('狂暴'),
+    Gun      = Window:AddTab('槍械'),
+    HUD      = Window:AddTab('介面'),
+    Game     = Window:AddTab('外觀'),
+    Weather  = Window:AddTab('天氣'),
+    Auto     = Window:AddTab('自動'),
+    Settings = Window:AddTab('設定'),
+}
+local Options = Library.Options or {}
+local Toggles = Library.Toggles or {}
+Library.Options = Options
+Library.Toggles = Toggles
+
+-- 戰鬥
+do
+    local L = Tabs.Combat:AddLeftGroupbox('靜默自瞄')
+    L:AddToggle('Silent_Enabled', { Text = '啟用靜默自瞄', Default = false, Callback = function(v) Config.SilentEnabled = v end })
+        :AddKeyPicker('Silent_Key', { Text = '靜默自瞄', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true, Callback = function(state) Config.SilentEnabled = state end })
+    L:AddToggle('Silent_AutoShoot', { Text = '自動開槍', Default = false, Callback = function(v) Config.SilentAutoShoot = v end })
+    L:AddToggle('Silent_WallCheck', { Text = '牆壁檢測', Default = true, Callback = function(v) Config.SilentWallCheck = v end })
+    L:AddToggle('Silent_360', { Text = '360 度模式', Default = false, Callback = function(v) Config.Silent360 = v end })
+    L:AddDropdown('Silent_HitPart', { Text = '命中部位', Default = 'Head', Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"}, Callback = function(v) Config.SilentHitPart = v end })
+    L:AddSlider('Silent_FOV', { Text = '視野半徑', Default = 150, Min = 10, Max = 800, Rounding = 0, Compact = true, Callback = function(v) Config.SilentFOV = v end })
+    L:AddSlider('Silent_HitChance', { Text = '命中率 %', Default = 100, Min = 0, Max = 100, Rounding = 0, Compact = true, Callback = function(v) Config.SilentHitChance = v end })
+
+    local R = Tabs.Combat:AddRightGroupbox('自瞄')
+    R:AddToggle('Aimbot', { Text = '啟用自瞄', Default = false, Callback = function(v) if v then Aimbot.enable() else Aimbot.disable() end end })
+        :AddKeyPicker('AimbotKey_Picker', { Text = '自瞄', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true, Callback = function(state) if state then Aimbot.enable() else Aimbot.disable() end end })
+    R:AddDropdown('AimbotKey', { Values = {'Always','MB2','MB1','C','E','F','Q','V','X','LeftShift','LeftAlt','LeftControl'}, Default = 'MB2', Text = '啟動方式', Callback = function(v) Config.AimbotKey = v end })
+    R:AddSlider('AimbotSmoothness', { Text = '平滑度 (0=硬鎖)', Default = 0, Min = 0, Max = 100, Rounding = 0, Callback = function(v) Config.AimbotSmoothness = v end })
+    R:AddSlider('AimbotFOVDeg', { Text = '視野 度', Default = 20, Min = 1, Max = 180, Rounding = 1, Callback = function(v) Config.AimbotFOVDeg = v end })
+    R:AddDropdown('AimbotTargetPart', { Values = {'Best','Head','Torso','Closest'}, Default = 'Best', Text = '目標骨骼', Callback = function(v) Config.AimbotTargetPart = v end })
+    R:AddToggle('AimbotVisCheck', { Text = '可見性檢測', Default = true, Callback = function(v) Config.AimbotVisCheck = v end })
+
+    local TB = Tabs.Combat:AddRightGroupbox('觸發機器人')
+    TB:AddToggle('Trigger', { Text = '啟用觸發', Default = false, Callback = function(v) if v then Trigger.enable() else Trigger.disable() end end })
+    TB:AddDropdown('TriggerKey', { Values = {'Always','MB2','MB1','C','E','F','Q','V','X','LeftShift','LeftAlt','LeftControl'}, Default = 'Always', Text = '啟動方式', Callback = function(v) Config.TriggerKey = v end })
+    TB:AddToggle('TriggerHeadOnly', { Text = '只打頭', Default = false, Callback = function(v) Config.TriggerHeadOnly = v end })
+
+    local T = Tabs.Combat:AddLeftGroupbox('目標選擇')
+    T:AddToggle('TeamCheck', { Text = '隊伍檢測', Default = true, Callback = function(v) Config.TeamCheck = v end })
+end
+
+-- 透視
+do
+    local L = Tabs.ESP:AddLeftGroupbox('透視 & 方框')
+    L:AddToggle('ESP', { Text = '啟用透視', Default = true, Callback = function(v) if v then ESP.enable() else ESP.disable() end end })
+    L:AddToggle('ESPTeamCheck', { Text = '隊伍檢測', Default = true, Callback = function(v) Config.ESPTeamCheck = v end })
+    L:AddToggle('ESPBox', { Text = '方框', Default = true, Callback = function(v) Config.ESPBox = v end })
+    L:AddToggle('ESPBoxGlow', { Text = '霓虹光暈', Default = true, Callback = function(v) Config.ESPBoxGlow = v end })
+    L:AddToggle('ESPRainbowBox', { Text = '彩虹方框', Default = false, Callback = function(v) Config.ESPRainbowBox = v end })
+    L:AddSlider('ESPBoxThickness', { Text = '方框粗細', Default = 1, Min = 1, Max = 4, Rounding = 0, Callback = function(v) Config.ESPBoxThickness = math.floor(v) end })
+    L:AddSlider('ESPBoxScale', { Text = '方框大小', Default = 1, Min = 0.6, Max = 1.6, Rounding = 2, Callback = function(v) Config.ESPBoxScale = v end })
+    L:AddToggle('ESPHealth', { Text = '血條', Default = true, Callback = function(v) Config.ESPHealth = v end })
+    local R = Tabs.ESP:AddRightGroupbox('文字')
+    R:AddToggle('ESPName', { Text = '玩家名字', Default = true, Callback = function(v) Config.ESPName = v end })
+    R:AddDropdown('ESPNameMode', { Values = {'Display','Username'}, Default = 'Display', Text = '名字來源', Callback = function(v) Config.ESPNameMode = v end })
+    R:AddToggle('ESPDistance', { Text = '距離', Default = true, Callback = function(v) Config.ESPDistance = v end })
+    R:AddSlider('ESPTextSize', { Text = '名字大小', Default = 14, Min = 9, Max = 24, Rounding = 0, Callback = function(v) Config.ESPTextSize = math.floor(v) end })
+    R:AddLabel('名字顏色'):AddColorPicker('ESPNameColor', { Default = Config.ESPNameColor, Callback = function(v) Config.ESPNameColor = v end })
+    R:AddLabel('方框顏色'):AddColorPicker('ESPBoxColor', { Default = Config.ESPBoxColor, Callback = function(v) Config.ESPBoxColor = v end })
+end
+
+-- 狂暴
+do
+    local RageTab = Tabs.Rage
+    local CORE = RageTab:AddLeftGroupbox('核心')
+    CORE:AddToggle('Rage_Enabled', { Text = '啟用狂暴', Default = false, Callback = function(v) if v then Rage.enable() else Rage.disable() end end })
+        :AddKeyPicker('Rage_Key', { Text = '狂暴', Default = 'None', Mode = 'Toggle', NoUI = true, SyncToggleState = true, Callback = function(state) if state then Rage.enable() else Rage.disable() end end })
+    CORE:AddDropdown('RageMode', { Values = {'Polar','Orbit'}, Default = 'Polar', Text = '狂暴模式', Callback = function(v) Config.RageMode = v; if Config.Rage then Rage.enable() end end })
+    CORE:AddToggle('Rage_HPPriority', { Text = '優先低血量目標', Default = true, Callback = function(v) Config.RageHPPriority = v end })
+    CORE:AddDivider('引擎')
+    CORE:AddDropdown('Rage_VoidDepth', { Values = {'shallow','deep'}, Default = 'deep', Text = '躲藏深度', Callback = function(v) Config.RageVoidDepth = v end })
+    CORE:AddDropdown('Rage_RestoreMode', { Values = {'auto','none','render','kerp'}, Default = 'auto', Text = '傳送模式', Callback = function(v) Config.RageRestoreMode = v end })
+
+    local ORBIT = RageTab:AddLeftGroupbox('繞圈專屬')
+    ORBIT:AddSlider('RageCombatOrbitRadius', { Text = '繞圈半徑', Default = 60, Min = 20, Max = 380, Rounding = 0, Callback = function(v) Config.RageCombatOrbitRadius = v end })
+    ORBIT:AddSlider('RageOrbitDwell', { Text = '停留時間', Default = 0.30, Min = 0.10, Max = 0.60, Rounding = 2, Callback = function(v) Config.RageOrbitDwell = v end })
+    ORBIT:AddSlider('RageCombatOrbitHeight', { Text = '繞圈高度', Default = 8, Min = 0, Max = 40, Rounding = 0, Callback = function(v) Config.RageCombatOrbitHeight = v end })
+    ORBIT:AddToggle('RageCombatOrbitJitter', { Text = '垂直抖動', Default = true, Callback = function(v) Config.RageCombatOrbitJitter = v end })
+    ORBIT:AddSlider('RagePBEyeUp', { Text = '眼睛高度', Default = 3, Min = 1, Max = 12, Rounding = 0, Callback = function(v) Config.RagePBEyeUp = v end })
+
+    local WEP = RageTab:AddRightGroupbox('武器')
+    WEP:AddDropdown('Rage_OnEmpty', { Values = {'Swap','Reload'}, Default = 'Swap', Text = '彈藥耗盡時', Callback = function(v) Config.RageOnEmpty = v end })
+    WEP:AddDropdown('Rage_PreferredSlot', { Values = {'Primary','Secondary','Melee'}, Default = 'Primary', Text = '偏好欄位', Callback = function(v) Config.RagePreferredSlot = v end })
+    WEP:AddSlider('Rage_Taps', { Text = '每次開火發數', Default = 6, Min = 1, Max = 8, Rounding = 0, Compact = true, Callback = function(v) Config.RageTaps = v end })
+    WEP:AddSlider('Rage_TapsPerFrame', { Text = '每幀發數', Default = 1, Min = 1, Max = 6, Rounding = 0, Compact = true, Callback = function(v) Config.RageTapsPerFrame = v end })
+    WEP:AddSlider('Rage_EyeMuzzleSep', { Text = '眼-口分離', Default = 0.07, Min = 0, Max = 1, Rounding = 2, Compact = true, Callback = function(v) Config.RageEyeMuzzleSep = v end })
+
+    local MELEE = RageTab:AddRightGroupbox('近戰')
+    MELEE:AddToggle('Rage_KnifeBot', { Text = '小刀機器人', Default = true, Callback = function(v) Config.RageKnifeBot = v end })
+end
+
+-- 槍械
+do
+    local G = Tabs.Gun:AddLeftGroupbox('槍械修改')
+    G:AddToggle('Gun_NoCooldown', { Text = '無冷卻', Default = false, Callback = function(v) Config.NoCooldown = v end })
+    G:AddToggle('Gun_NoSpread', { Text = '無散射', Default = false, Callback = function(v) Config.NoSpread = v end })
+    G:AddToggle('Gun_NoRecoil', { Text = '無後座', Default = false, Callback = function(v) Config.NoRecoil = v end })
+    G:AddToggle('Gun_MaxAccuracy', { Text = '最大精準', Default = false, Callback = function(v) Config.MaxAccuracy = v end })
+    G:AddToggle('Gun_RapidAttack', { Text = '快速攻擊（近戰）', Default = false, Callback = function(v) Config.RapidAttack = v end })
+    G:AddToggle('Gun_NoMuzzleFlash', { Text = '無槍口火光', Default = false, Callback = function(v) Config.NoMuzzleFlash = v; updateMuzzleFlash() end })
+end
+
+-- 介面（HUD）
+do
+    local M = Tabs.HUD:AddLeftGroupbox('主控')
+    M:AddToggle('HUD_Enabled', { Text = '啟用介面', Default = true, Callback = function(v) if v then HUDPlus.start() else HUDPlus.stop() end end })
+    M:AddToggle('HUD_Watermark', { Text = '浮水印', Default = true, Callback = function(v) Config.HUDWatermark = v end })
+
+    local F = Tabs.HUD:AddRightGroupbox('命中回饋')
+    F:AddToggle('FX_HitMarker', { Text = '命中標記', Default = true, Callback = function(v) Config.FXHitMarker = v end })
+    F:AddToggle('FX_DamageNumbers', { Text = '傷害數字', Default = true, Callback = function(v) Config.FXDamageNumbers = v end })
+    F:AddToggle('FX_KillBanner', { Text = '擊殺橫幅', Default = true, Callback = function(v) Config.FXKillBanner = v end })
+    F:AddToggle('FX_KillFeed', { Text = '擊殺訊息', Default = true, Callback = function(v) Config.FXKillFeed = v end })
+    F:AddToggle('FX_HeadshotSpark', { Text = '爆頭火花', Default = true, Callback = function(v) Config.FXHeadshotSpark = v end })
+    F:AddToggle('FX_HitFlash', { Text = '受擊紅閃', Default = true, Callback = function(v) Config.FXHitFlash = v end })
+    F:AddToggle('FX_LowHPVignette', { Text = '低血暗角', Default = true, Callback = function(v) Config.FXLowHPVignette = v end })
+end
+
+-- 外觀
+do
+    local L = Tabs.Game:AddLeftGroupbox('外觀')
+    L:AddToggle('GV_Enabled', { Text = '啟用', Default = false, Callback = function(v) if v then GameVisuals.enable() else GameVisuals.disable() end end })
+    local D = L:AddDependencyBox()
+    D:AddToggle('GV_UnlockAll', { Text = '解鎖全部', Default = false, Callback = function(v) GameVisuals.setUnlockAll(v) end })
+    D:SetupDependencies({ { Toggles.GV_Enabled, true } })
+    L:AddButton({ Text = '重置全部', Func = function() pcall(GameVisuals.restore) end })
+end
+
+-- 天氣
+do
+    local L = Tabs.Weather:AddLeftGroupbox('天氣')
+    L:AddToggle('WX_Enabled', { Text = '啟用', Default = false, Callback = function(v) if v then Weather.enableWeather() else Weather.disableWeather() end end })
+    local D = L:AddDependencyBox()
+    D:AddToggle('WX_Stars', { Text = '流星雨', Default = false, Callback = function(v) Weather.toggleShootingStars(v) end })
+    D:AddSlider('WX_StarRate', { Text = '流星雨頻率', Default = 1, Min = 0.25, Max = 3, Rounding = 2, Callback = function(v) Weather.setStarRate(v) end })
+    D:AddDivider('天空')
+    D:AddDropdown('WX_Sky', { Values = {'Off','Space','Sunset','Clouds','Storm','Winter','Vaporwave'}, Default = 'Off', Text = '天空盒', Callback = function(v) Weather.setSkybox(v) end })
+    D:AddToggle('WX_HideCelestial', { Text = '隱藏天體', Default = false, Callback = function(v) Weather.toggleCelestial(v) end })
+    D:SetupDependencies({ { Toggles.WX_Enabled, true } })
+end
+
+-- 自動（AutoQueue）
+do
+    local L = Tabs.Auto:AddLeftGroupbox('自動排隊')
+    L:AddToggle('AQ_Enabled', { Text = '啟用自動排隊', Default = false, Callback = function(v)
+        if v then AutoQueue.start(State.AutoQueueMode, State.AutoQueueRanked, Config.AutoQueueDelay)
+        else AutoQueue.stop() end
+    end })
+    L:AddDropdown('AQ_Mode', { Values = {'1v1','2v2','3v3','4v4','5v5'}, Default = '1v1', Text = '模式', Callback = function(v) State.AutoQueueMode = v end })
+    L:AddToggle('AQ_Ranked', { Text = '積分', Default = false, Callback = function(v) State.AutoQueueRanked = v end })
+    L:AddSlider('AQ_Delay', { Text = '延遲 (秒)', Default = 2, Min = 0, Max = 30, Rounding = 1, Compact = true, Callback = function(v) Config.AutoQueueDelay = v end })
+    L:AddLabel('狀態: 等待中')
+    L:AddButton({ Text = '立即加入一次', Func = function() AutoQueue.join(State.AutoQueueMode, State.AutoQueueRanked) end })
+end
+
+-- 設定
+do
+    local L = Tabs.Settings:AddLeftGroupbox('選單')
+    L:AddDropdown('GUIToggleKey', {
+        Values = {'RightShift','LeftShift','RightControl','LeftControl','RightAlt','LeftAlt','F1','F2','F3','F4','F5','F6','F7','F8','F9','F10','F11','F12','Insert','Delete','Home','End','PageUp','PageDown','CapsLock','Tab'},
+        Default = 'RightShift', Text = '介面開關鍵', Callback = function() end
+    })
+    L:AddButton({ Text = '卸載腳本 (需雙擊)', DoubleClick = true, Func = function()
+        pcall(function()
+            if getgenvFn().__LH_restoreAllHooks then
+                getgenvFn().__LH_restoreAllHooks()
+            end
+        end)
+        pcall(function() ESP.unload() end)
+        pcall(function() Aimbot.unload() end)
+        pcall(function() Trigger.unload() end)
+        pcall(function() Rage.unload() end)
+        pcall(function() HUDPlus.stop() end)
+        pcall(function() GameVisuals.restore() end)
+        pcall(function() Weather.unload() end)
+        pcall(function() AutoQueue.stop() end)
+        if muzzleFlashConn then muzzleFlashConn:Disconnect() end
+        if shared._LH_GunOrig and GunModule then
+            if setreadonly then pcall(setreadonly, GunModule, false) end
+            GunModule.StartShooting = shared._LH_GunOrig
+        end
+        if shared._LH_SpreadOrig and GameplayUtility then
+            if setreadonly then pcall(setreadonly, GameplayUtility, false) end
+            GameplayUtility.GetSpread = shared._LH_SpreadOrig
+        end
+        if shared._LH_MeleeOrig and MeleeModule then
+            if setreadonly then pcall(setreadonly, MeleeModule, false) end
+            MeleeModule.StartShooting = shared._LH_MeleeOrig
+        end
+        if shared._LH_velConn then
+            pcall(function() shared._LH_velConn:Disconnect() end)
+        end
+        Library:Unload()
+        _G["\76\72"] = nil
+    end })
+    UIS.InputBegan:Connect(function(input, gpe)
+        if gpe then return end
+        local kp = Options.GUIToggleKey
+        if kp and kp.Value and kp.Value ~= 'None'
+           and Enum.KeyCode[kp.Value] and input.KeyCode == Enum.KeyCode[kp.Value] then
+            pcall(function() Library:Toggle() end)
+        end
+    end)
+end
+
+task.spawn(function()
+    pcall(function()
+        ThemeManager:SetLibrary(Library)
+        SaveManager:SetLibrary(Library)
+        SaveManager:IgnoreThemeSettings()
+        SaveManager:SetIgnoreIndexes({ 'MenuKeybind' })
+        ThemeManager:SetFolder('v3hub')
+        SaveManager:SetFolder('v3hub/rivals')
+        SaveManager:BuildConfigSection(Tabs.Settings)
+        ThemeManager:ApplyToTab(Tabs.Settings)
+        SaveManager:LoadAutoloadConfig()
+    end)
+end)
+
+pcall(Rage.init)
+pcall(HUDPlus.start)
+pcall(Weather.init)
+
+Library:Notify('v12.0 載入完成', 4)
+_G["\76\72"] = Library
+print("[v12.0] 完整版載入完成")
