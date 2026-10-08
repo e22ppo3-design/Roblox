@@ -1829,13 +1829,6 @@ end)
 Library:Notify('v12.0 整合版載入完成', 4)
 _G["\76\72"] = Library
 print("[v12.0] 整合版載入完成")
--- ============================================================
--- LuaHook v12.0 — 狂暴完整版（Linoria 原文，砍 Orbit）
--- 從你之前貼的 Linoria 源碼搬過來，Orbit 相關刪除
--- 接在整合版結尾
--- ============================================================
-
--- ============ 狂暴設定 ============
 Config.Rage = false
 Config.RageMode = "Polar"
 Config.RageGumMode = "on"
@@ -1874,101 +1867,47 @@ Config.RageTapsPerFrame = 1
 Config.RageHideJitter = true
 Config.RagePolarParity = true
 Config.RagePrioritizeHackers = true
-Config.RageDirectFire = true
+Config.RageCombatOrbitRadius = 60
+Config.RageOrbitDwell = 0.30
+Config.RageCombatOrbitHeight = 8
+Config.RageCombatOrbitJitter = true
+Config.RagePBEyeUp = 3
 
 State.RageTarget = nil
 State.RageRealCF = nil
 State.RageRealChar = nil
 State.RageVoidCF = nil
-State.RageVoidNext = 0
-State.RageVoidBase = nil
-State.RageVoidSteps = 0
-State.RageLastFireTime = 0
-State.RageReloadLast = 0
-State.RageSwitchLast = 0
 State.RageInMatch = false
 State.RageStatus = "Idle"
 State.RageFiring = false
 State.RageVoidActive = false
 State.RageTranslocating = false
-State.RageFireFromPos = nil
-State.RageFireAimPos = nil
-State.RageFireHitPart = nil
-State.RageFireStamp = 0
-State.RageDealtTotal = 0
 State.RageTrueVelocityMap = {}
-State.RageSuspectedProtection = {}
-State.RageBacktrackBuf = {}
 State.RageCharTokens = {}
-State.RageGlueBound = false
 State.RageGumMode = "off"
+State.RageGlueBound = false
 State.RageGlueVerified = "n/a"
+State.RagePhysRate = "off"
+State.RageFPDHPath = "not attempted"
+State.RageKnifeSwings = 0
+State.RageKnifeStatus = "idle"
+State.RageAmmoUnreadable = 0
+State.RageFireFrames = 0
+State.RageFireZeroFrames = 0
+State.RageFireWhy = nil
+State.RageTranslocateBaits = 0
+State.RageVoidFires = 0
+State.RagePoisonBlips = 0
+State.RagePreFires = 0
+State.OrbitAngle = 0
+State.OrbitVantage = nil
+State.OrbitVantageUntil = 0
 State.IdentitySafe = nil
 State.CapabilityObserver = false
 State.CapabilityErrors = 0
 State.CapabilityKilledAt = nil
-State.CapabilityLastStatus = nil
-State.CapabilityRecoveries = 0
 State.CapabilityDirty = false
-State.CapabilitySeam = nil
-State.ViewAngleForged = false
-State.RageWhyProtected = 0
-State.RageWhyNoPark = 0
-State.RageWhyPrimeWait = 0
-State.RageWhyPredict = 0
-State.RageWhyDip = 0
-State.RageWhyMeleeCd = 0
-State.RageFireFrames = 0
-State.RageImmuneStale = 0
-State.RageAmmoUnreadable = 0
-State.RageBaitHoldFrames = 0
-State.RageBaitPinRefused = 0
-State.RageBaitRingFallbacks = 0
-State.RageVoidFires = 0
-State.RagePoisonBlips = 0
-State.RagePreFires = 0
-State.RagePredTarget = nil
-State.RagePredHide = 0
-State.RagePredHideN = 0
-State.RagePredAtk = 0
-State.RagePredAtkN = 0
-State.RagePredPhase = "?"
-State.RagePredFor = 0
-State.RagePredDue = 0
-State.RagePredWindow = false
-State.RagePredMag = 0
-State.RageParkDirty = false
-State.RageLastParkPos = nil
-State.RageParkLatchCanary = 0
-State.RageLatchStuds = 0
-State.RageOrderCanary = 0
-State.RagePostPark = false
-State.RageBelowPlaneFrames = 0
-State.RageBelowPlaneLast = 0
-State.RageBelowPlaneDeaths = 0
-State.RageParkDriftFrames = 0
-State.RageParkDrift = 0
-State.RageParkDriftY = 0
-State.RageEyeClampFrames = 0
-State.RageParkClampFrames = 0
-State.RageTranslocateBaits = 0
-State.RageFireZeroFrames = 0
-State.RageBlankCanary = 0
-State.RageTracerCanary = 0
-State.RageOOBParkCanary = 0
-State.RageHitsOn = 0
-State.RageHitsOff = 0
-State.RageOffFromSelf = 0
-State.RageOffFromTarget = 0
-State.RageKnifeSwings = 0
-State.RageKnifeStatus = "idle"
-State.RageRawSet = false
-State.RagePhysRate = "off"
-State.RageFPDHPath = "not attempted"
-State.RageImmuneOverride = 0
-State.RageFireWhy = nil
 
--- ============ Identity 工具 ============
 local _identGet, _identSet, _identTried = nil, nil, false
 local function identEnsure()
     if _identTried then return _identSet ~= nil end
@@ -1978,10 +1917,8 @@ local function identEnsure()
             _identGet, _identSet = getthreadidentity, setthreadidentity
         end
     end)
-    State.RageRawSet = _identSet ~= nil
     return _identSet ~= nil
 end
-
 local _identitySafeLatched = nil
 local function identityIsSafe()
     if _identitySafeLatched == nil then
@@ -1991,43 +1928,10 @@ local function identityIsSafe()
     return _identitySafeLatched
 end
 
-local function atId2(fn, ...)
-    if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
-    local args = table.pack(...)
-    local done, ok, res = false, false, nil
-    task.spawn(function()
-        local okPrev, prev = pcall(_identGet)
-        if not okPrev then return end
-        if not pcall(_identSet, 2) then return end
-        done = true
-        ok, res = pcall(fn, table.unpack(args, 1, args.n))
-        pcall(_identSet, prev)
-    end)
-    if done then return ok, res end
-    return pcall(fn, table.unpack(args, 1, args.n))
-end
-
-local function atId8(fn, ...)
-    if _identSet == nil or not identityIsSafe() then return pcall(fn, ...) end
-    local args = table.pack(...)
-    local done, ok, res = false, false, nil
-    task.spawn(function()
-        local okPrev, prev = pcall(_identGet)
-        if not okPrev then return end
-        if not pcall(_identSet, 8) then return end
-        done = true
-        ok, res = pcall(fn, table.unpack(args, 1, args.n))
-        pcall(_identSet, prev)
-    end)
-    if done then return ok, res end
-    return pcall(fn, table.unpack(args, 1, args.n))
-end
-
 pcall(function()
     game:GetService("LogService").MessageOut:Connect(function(msg)
         if type(msg) ~= "string" or not string.find(msg, "lacking capability", 1, true) then return end
         State.CapabilityErrors = (State.CapabilityErrors or 0) + 1
-        State.CapabilityLastStatus = tostring(State.RageStatus)
         if not State.CapabilityKilledAt then
             State.CapabilityKilledAt = tostring(State.RageStatus)
             State.CapabilityDirty = true
@@ -2036,7 +1940,6 @@ pcall(function()
     State.CapabilityObserver = true
 end)
 
--- ============ Deflect 偵測 ============
 local DEFLECT_ANIM_IDS = {
     ["14761240825"]=true,["14761220206"]=true,["14761234917"]=true,["14761221711"]=true,
     ["14761223422"]=true,["14761225204"]=true,["14761232380"]=true,["90436105114997"]=true,
@@ -2048,8 +1951,6 @@ local DEFLECT_ANIM_IDS = {
 }
 local _deflecting, _deflGen = {}, {}
 local _deflHookLive = false
-local DEFLECT_CLEAR_PAD = 0.05
-
 local function isDeflectingAnim(player)
     if not player or not player.Character then return false end
     local hum = player.Character:FindFirstChildOfClass("Humanoid")
@@ -2067,14 +1968,12 @@ local function isDeflectingAnim(player)
     end
     return false
 end
-
 local function isDeflecting(player)
     if not player then return false end
     if _deflecting[player.UserId] then return true end
     if _deflHookLive then return false end
     return isDeflectingAnim(player)
 end
-
 ;(function()
     local function recordDeflect(self)
         local fighter = self and self.ClientFighter
@@ -2086,7 +1985,7 @@ end
         _deflecting[uid] = true
         local gen = (_deflGen[uid] or 0) + 1
         _deflGen[uid] = gen
-        task.delay(dur + DEFLECT_CLEAR_PAD, function()
+        task.delay(dur + 0.05, function()
             if _deflGen[uid] == gen then _deflecting[uid] = nil end
         end)
     end
@@ -2113,7 +2012,6 @@ end
     end)
 end)()
 
--- ============ 免疫偵測 ============
 local _invincible, _invincEnt = {}, {}
 local function isSpawnProtected(player)
     if not player then return false end
@@ -2140,13 +2038,9 @@ local function isSpawnProtected(player)
     return _invincible[uid] == true
 end
 
--- ============ 武器工具 ============
-local MELEE_NMS = {
-    ["Battle Axe"]=true,["Chainsaw"]=true,["Daggers"]=true,["Fists"]=true,
-    ["Gunblade"]=true,["Katana"]=true,["Knife"]=true,["Scythe"]=true,["Trowel"]=true,
-}
-local KATANA_NAMES = {"katana","saber","lightning bolt","evil trident","tridant","devil's trident","linked sword","keytana","cutlass","swordfish","riptide"}
+local MELEE_NMS = {["Battle Axe"]=true,["Chainsaw"]=true,["Daggers"]=true,["Fists"]=true,["Gunblade"]=true,["Katana"]=true,["Knife"]=true,["Scythe"]=true,["Trowel"]=true}
 local KNIFE_NAMES = {"knife","karambit","balisong","chancla","machete","candy cane","armature","daggers","axe"}
+local KATANA_NAMES = {"katana","saber","lightning bolt","evil trident","tridant","devil's trident","linked sword","keytana","cutlass","swordfish","riptide"}
 
 local function getLocalFighter()
     if not Rivals.Ready then return nil end
@@ -2172,27 +2066,21 @@ local function getWeaponName(player)
 end
 local function isKatana(player)
     local w = getWeaponName(player):lower()
-    for _, n in ipairs(KATANA_NAMES) do
-        if w:find(n, 1, true) then return true end
-    end
+    for _, n in ipairs(KATANA_NAMES) do if w:find(n, 1, true) then return true end end
     return isDeflecting(player)
 end
 local function isLocalKnife()
     local lf = getLocalFighter()
     if lf and lf.EquippedItem then
         local name = lf.EquippedItem.Name:lower()
-        for _, n in ipairs(KNIFE_NAMES) do
-            if name:find(n, 1, true) then return true end
-        end
+        for _, n in ipairs(KNIFE_NAMES) do if name:find(n, 1, true) then return true end end
     end
     return false
 end
 local function isEnemyKnife(player)
     if not player then return false end
     local w = getWeaponName(player):lower()
-    for _, n in ipairs(KNIFE_NAMES) do
-        if w:find(n, 1, true) then return true end
-    end
+    for _, n in ipairs(KNIFE_NAMES) do if w:find(n, 1, true) then return true end end
     return false
 end
 local function isRiotShield(player)
@@ -2209,10 +2097,7 @@ local function ownsRiotShield(player)
         if type(items) ~= "table" then return false end
         for _, it in items do
             local n = nil
-            if type(it) == "table" then
-                n = it.Name
-                if n == nil and it.Info then n = it.Info.Name end
-            end
+            if type(it) == "table" then n = it.Name; if n == nil and it.Info then n = it.Info.Name end end
             if type(n) == "string" then
                 local low = n:lower()
                 if low:find("riot shield") or low:find("energy shield") or low:find("tombstone shield") then
@@ -2279,10 +2164,18 @@ local function isValidRageTarget(player, keepDeflect, rageScope)
     return true
 end
 
-print("[v12.0] 狂暴完整版 — 基礎載入完成")
-
 local Rage = {}
 ;(function()
+    local _tgtConn = nil
+    local function bump(p) State.RageCharTokens[p] = (State.RageCharTokens[p] or 0) + 1 end
+    local function hasLOS(fromPos, toPos, ignore)
+        local rp = RaycastParams.new()
+        rp.FilterType = Enum.RaycastFilterType.Exclude
+        rp.FilterDescendantsInstances = ignore
+        local res = W:Raycast(fromPos, toPos - fromPos, rp)
+        if not res then return true end
+        return (res.Position - toPos).Magnitude < 3
+    end
     local function lookCF(fromPos, toPos)
         local dir = toPos - fromPos
         if dir.Magnitude < 1e-4 then dir = Vector3.new(0, -1, 0) end
@@ -2475,12 +2368,19 @@ local Rage = {}
     local HIDE_JITTER_MAX = 0.25
     local _hiding = false
     local _primeUntil = 0
+    local ORBIT_PRIME_S = 0.07
+    local ORBIT_JITTER_MAX = 0.25
+    local ORBIT_JUMP = 5
+    local _orbHiding = true
+    local _orbPrimeUntil = 0
+    local ORB_IMMUNE_MAX_HOLD = 6.0
+    local _orbImmuneSince, _orbImmuneTgt = 0, nil
+    local _orbLastDisp = nil
 
     local FFLAGS_ON = { DFIntS2PhysicsSenderRate = "120", DFIntAssemblyHistoryBufferSize = "2147483648", DFIntAssemblyHistorySkipSize = "0" }
     local FFLAGS_OFF = { DFIntS2PhysicsSenderRate = "15", DFIntAssemblyHistoryBufferSize = "15", DFIntAssemblyHistorySkipSize = "8" }
     local _fpdhOriginal = nil
     local _flagsOn = false
-
     local function fflagApi()
         local set, get, name = nil, nil, "none"
         pcall(function()
@@ -2490,7 +2390,6 @@ local Rage = {}
         end)
         return set, get, name
     end
-
     local _fpdhIdTried = false
     local _fpdhDead = false
     local function writeFPDH(value)
@@ -2521,7 +2420,6 @@ local Rage = {}
         _fpdhDead = true
         return false, "refused"
     end
-
     local function setPhysicsFlags(on)
         if on == _flagsOn then return end
         if on and Config.RagePhysicsFlags == false then return end
@@ -2531,11 +2429,7 @@ local Rage = {}
             if prev ~= prev then prev = -500 end
             _fpdhOriginal = prev
         end
-        if on then
-            writeFPDH(0/0)
-        else
-            writeFPDH(_fpdhOriginal)
-        end
+        if on then writeFPDH(0/0) else writeFPDH(_fpdhOriginal) end
         local set, get, setName = fflagApi()
         if set == nil then
             State.RagePhysRate = "no fflag setter"
@@ -2647,8 +2541,7 @@ local Rage = {}
         local holdFire = isSpawnProtected(tgt) and Config.RageSkipImmune
         if not holdFire then
             _immuneSince, _immuneTgt = 0, nil
-        else
-            local now = tick()
+        else            local now = tick()
             if _immuneTgt ~= tgt then _immuneSince, _immuneTgt = now, tgt end
             if now - _immuneSince > IMMUNE_MAX_HOLD then holdFire = false end
         end
@@ -2708,6 +2601,169 @@ local Rage = {}
         end
     end
 
+    local function orbitVantage(aimPos, ignore, kf, knife)
+        State.OrbitAngle = ((State.OrbitAngle or 0) + 2.39996) % (math.pi * 2)
+        local base = Config.RageCombatOrbitRadius or 60
+        local radii
+        if knife then
+            radii = { math.max(base, 75), 95 }
+        else
+            radii = { base, base * 0.6, math.min(base * 1.5, 380) }
+        end
+        for _, r in ipairs(radii) do
+            for i = 0, 5 do
+                local ang = State.OrbitAngle + i * (math.pi / 3)
+                local jitter = 0
+                if Config.RageCombatOrbitJitter then jitter = (math.random() - 0.5) * 14 end
+                local h = (Config.RageCombatOrbitHeight or 8) + jitter
+                local pos = Vector3.new(aimPos.X + math.cos(ang) * r,
+                    math.max(aimPos.Y + h, kf + 6),
+                    aimPos.Z + math.sin(ang) * r)
+                if isSanePos(pos) and not posIsOOB(pos) and hasLOS(pos, aimPos, ignore) then
+                    return pos
+                end
+            end
+        end
+        return nil
+    end
+
+    local function orbitVoid(hrp, status)
+        State.RageStatus = status
+        State.OrbitVantage = nil
+        State.OrbitVantageUntil = 0
+        State.RageFiring = false
+        State.RageVoidActive = true
+        _orbHiding = true
+        _orbPrimeUntil = 0
+        _orbLastDisp = nil
+        Rage._displace(hrp, voidCFrame())
+    end
+
+    local function flankPoint(tgt, hh)
+        if not tgt or not tgt.Character or not hh or not isSanePos(hh.Position) then return nil end
+        local katana = isKatana(tgt)
+        local shield = Config.RageShieldBackstab and isRiotShield(tgt)
+        local stowed = Config.RageShieldBackstab and ownsRiotShield(tgt)
+        if not (katana or shield or stowed) then return nil end
+        local thrp = tgt.Character:FindFirstChild("HumanoidRootPart")
+        if not thrp then return nil end
+        local look = thrp.CFrame.LookVector
+        look = Vector3.new(look.X, 0, look.Z)
+        if look.Magnitude < 1e-3 then return nil end
+        local inv = -look.Unit
+        if not katana and not shield and stowed then inv = look.Unit end
+        local anchor = hh.Position
+        local kf = killFloor()
+        local dist = shield and 2.5 or 3.0
+        local ignore = { tgt.Character, LP.Character }
+        local rp = RaycastParams.new(); rp.FilterType = Enum.RaycastFilterType.Exclude
+        rp.FilterDescendantsInstances = ignore
+        local flank = anchor + inv * dist
+        local wr = W:Raycast(anchor, inv * dist, rp)
+        if wr then flank = wr.Position - inv * 0.5 end
+        flank = Vector3.new(flank.X, math.max(flank.Y, kf + 3), flank.Z)
+        if not hasLOS(flank, hh.Position, ignore) then return nil end
+        return flank
+    end
+
+    local _orbDeflectSince = 0
+    local function orbitTick(ch, hrp, tgt)
+        local kf = killFloor()
+        if not tgt or not tgt.Character then return orbitVoid(hrp, "No target") end
+        local tc = tgt.Character
+        local thrp = tc:FindFirstChild("HumanoidRootPart")
+        local hh = tc:FindFirstChild("HitboxHead") or tc:FindFirstChild("Head")
+        if not hh or not isSanePos(hh.Position) then return orbitVoid(hrp, "Hiding") end
+        if isDeflecting(tgt) then
+            if _orbDeflectSince == 0 then _orbDeflectSince = tick() end
+            if tick() - _orbDeflectSince < 1.5 then return orbitVoid(hrp, "Deflecting") end
+        else
+            _orbDeflectSince = 0
+        end
+        if not weaponReady(getEquippedItem()) then
+            local act = Rage._weaponRecovery(getEquippedItem())
+            if act == "dry" then return orbitVoid(hrp, "Dry") end
+            if act == "swap" or act == "swap-wait" then return orbitVoid(hrp, "Swapping") end
+            return orbitVoid(hrp, "Reloading")
+        end
+        local aimPos = hh.Position
+        if posIsOOB(aimPos) or aimPos.Y < kf + 1 then return orbitVoid(hrp, "Hiding") end
+        local ignore = { tc, LP.Character }
+        local vantage, status = nil, nil
+        local flank = flankPoint(tgt, hh)
+        if not flank and thrp and Config.RageKnifeBackstab and isLocalKnife() then
+            local inv = -thrp.CFrame.LookVector
+            local rp = RaycastParams.new()
+            rp.FilterType = Enum.RaycastFilterType.Exclude
+            rp.FilterDescendantsInstances = ignore
+            local f = thrp.Position + inv * 3.0
+            local wr = W:Raycast(thrp.Position, inv * 3.0, rp)
+            if wr then f = wr.Position - inv * 0.5 end
+            local cand = Vector3.new(f.X, math.max(f.Y, kf + 3), f.Z)
+            if isSanePos(cand) and not posIsOOB(cand) and hasLOS(cand, hh.Position, ignore) then
+                flank = cand
+            end
+        end
+        if flank then
+            vantage = flank
+            State.OrbitVantage = nil
+            if isRiotShield(tgt) then status = "Anti-riot"
+            elseif isKatana(tgt) then status = "Katana flank"
+            else status = "Backstab" end
+        else
+            local knife = isEnemyKnife(tgt)
+            local held = State.OrbitVantage
+            if (not held) or tick() >= (State.OrbitVantageUntil or 0) or not hasLOS(held, aimPos, ignore) then
+                local v = orbitVantage(aimPos, ignore, kf, knife)
+                if v then
+                    State.OrbitVantage = v
+                    State.OrbitVantageUntil = tick() + (Config.RageOrbitDwell or 0.09)
+                    held = v
+                elseif held and hasLOS(held, aimPos, ignore) then
+                    State.OrbitVantageUntil = tick() + (Config.RageOrbitDwell or 0.09)
+                else held = nil end
+            end
+            if held then
+                vantage = held
+                status = knife and "Orbit (kept dist)" or "Orbit"
+            end
+        end
+        if not vantage or not isSanePos(vantage) or posIsOOB(vantage) then
+            return orbitVoid(hrp, "Orbit (hiding)")
+        end
+        State.RageStatus = status or "Orbit"
+        State.RageVoidActive = false
+        local jumped = _orbLastDisp == nil or (vantage - _orbLastDisp).Magnitude > ORBIT_JUMP
+        _orbLastDisp = vantage
+        if _orbHiding or jumped then
+            _orbHiding = false
+            local extra = 0
+            if Config.RageHideJitter ~= false then extra = math.random() * ORBIT_JITTER_MAX end
+            _orbPrimeUntil = tick() + ORBIT_PRIME_S + extra
+        end
+        Rage._displace(hrp, CFrame.new(vantage))
+        local holdFire = false
+        if Config.RageSkipImmune ~= false then holdFire = isSpawnProtected(tgt) end
+        if not holdFire then
+            _orbImmuneSince, _orbImmuneTgt = 0, nil
+        else
+            local nowI = tick()
+            if _orbImmuneTgt ~= tgt then _orbImmuneSince, _orbImmuneTgt = nowI, tgt end
+            if nowI - _orbImmuneSince > ORB_IMMUNE_MAX_HOLD then holdFire = false end
+        end
+        if holdFire then
+            State.RageFiring = false
+            State.RageStatus = "Protected"
+        elseif tick() < _orbPrimeUntil then
+            State.RageFiring = false
+            State.RageStatus = "Priming"
+        else
+            State.RageFiring = true
+            local eye = vantage + Vector3.new(0, Config.RagePBEyeUp or 3, 0)
+            polarFire(eye, aimPos, hh)
+        end
+    end
+
     local function restoreHome(pin)
         local ch = LP.Character
         local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
@@ -2735,6 +2791,25 @@ local Rage = {}
         local delta = back.Position - hrp.Position
         if not isSanePos(delta) then return end
         C.CFrame = C.CFrame + delta
+    end
+
+    function Rage.init()
+        for _, p in ipairs(getSafePlayers()) do bump(p) end
+        Players.PlayerAdded:Connect(function(p)
+            bump(p)
+            p.CharacterAdded:Connect(function() bump(p) end)
+        end)
+        for _, p in ipairs(getSafePlayers()) do
+            p.CharacterAdded:Connect(function() bump(p) end)
+        end
+        Players.PlayerRemoving:Connect(function(p) State.RageCharTokens[p] = nil end)
+        LP.CharacterAdded:Connect(function()
+            bump(LP)
+            State.RageRealCF = nil
+            State.RageRealChar = nil
+            State.RageTarget = nil
+        end)
+        bump(LP)
     end
 
     function Rage.enable()
@@ -2798,7 +2873,17 @@ local Rage = {}
                 if not isSanePos(hrp.Position) then restoreHome(false) end
                 return
             end
-            polarTick(ch, hrp)
+            local tgt = _target
+            if tgt and (not tgt.Parent or not tgt.Character or not isAlive(tgt)
+                or (Config.TeamCheck and isTeammate(tgt))) then tgt = nil end
+            if not tgt then tgt = findTarget() end
+            State.RageTarget = tgt
+            if (Config.RageMode or "Polar") == "Orbit" then
+                orbitTick(ch, hrp, tgt)
+            else
+                _target = tgt
+                polarTick(ch, hrp)
+            end
         end)
     end
 
@@ -2829,6 +2914,7 @@ local Rage = {}
 
     function Rage.unload()
         Rage.disable()
+        if _tgtConn then pcall(function() _tgtConn:Disconnect() end); _tgtConn = nil end
     end
     Rage._encodeShot = SharedEncode.encodeShot
     Rage._buildShotFields = SharedEncode.buildShotFields
@@ -2844,6 +2930,7 @@ do
         Text = '狂暴', Default = 'None', Mode = 'Toggle', NoUI = true,
         SyncToggleState = true, Callback = function(state) if state then Rage.enable() else Rage.disable() end end
     })
+    CORE:AddDropdown('RageMode', { Values = {'Polar','Orbit'}, Default = 'Polar', Text = '狂暴模式', Callback = function(v) Config.RageMode = v; if Config.Rage then Rage.enable() end end })
     CORE:AddToggle('Rage_SkipImmune', { Text = '對無敵目標停火', Default = true, Callback = function(v) Config.RageSkipImmune = v end })
     CORE:AddToggle('Rage_HPPriority', { Text = '優先低血量目標', Default = true, Callback = function(v) Config.RageHPPriority = v end })
     CORE:AddToggle('Rage_PrioritizeHackers', { Text = '優先作弊者', Default = true, Callback = function(v) Config.RagePrioritizeHackers = v end })
@@ -2862,6 +2949,13 @@ do
     CORE:AddSlider('Rage_BaitRate', { Text = '每次爆發次數', Default = 2, Min = 1, Max = 6, Rounding = 0, Callback = function(v) Config.RageBaitRate = math.floor(v) end })
     CORE:AddDropdown('Rage_RestoreMode', { Values = {'auto','none','render','kerp'}, Default = 'auto', Text = '傳送模式', Callback = function(v) Config.RageRestoreMode = v end })
 
+    local ORBIT = RageTab:AddLeftGroupbox('繞圈專屬')
+    ORBIT:AddSlider('RageCombatOrbitRadius', { Text = '繞圈半徑', Default = 60, Min = 20, Max = 380, Rounding = 0, Callback = function(v) Config.RageCombatOrbitRadius = v end })
+    ORBIT:AddSlider('RageOrbitDwell', { Text = '停留時間', Default = 0.30, Min = 0.10, Max = 0.60, Rounding = 2, Callback = function(v) Config.RageOrbitDwell = v end })
+    ORBIT:AddSlider('RageCombatOrbitHeight', { Text = '繞圈高度', Default = 8, Min = 0, Max = 40, Rounding = 0, Callback = function(v) Config.RageCombatOrbitHeight = v end })
+    ORBIT:AddToggle('RageCombatOrbitJitter', { Text = '垂直抖動', Default = true, Callback = function(v) Config.RageCombatOrbitJitter = v end })
+    ORBIT:AddSlider('RagePBEyeUp', { Text = '眼睛高度', Default = 3, Min = 1, Max = 12, Rounding = 0, Callback = function(v) Config.RagePBEyeUp = v end })
+
     local WEP = RageTab:AddRightGroupbox('武器')
     WEP:AddDropdown('Rage_OnEmpty', { Values = {'Swap','Reload'}, Default = 'Swap', Text = '彈藥耗盡時', Callback = function(v) Config.RageOnEmpty = v end })
     WEP:AddDropdown('Rage_PreferredSlot', { Values = {'Primary','Secondary','Melee'}, Default = 'Primary', Text = '偏好欄位', Callback = function(v) Config.RagePreferredSlot = v end })
@@ -2876,5 +2970,5 @@ do
     MELEE:AddToggle('Rage_GumVoidFire', { Text = '口香糖虛空開火', Default = true, Callback = function(v) Config.RageGumVoidFire = v end })
 end
 
-Library:Notify('狂暴載入完成', 4)
+Library:Notify('狂暴完整版載入完成', 4)
 print("[v12.0] 狂暴完整版載入完成")
