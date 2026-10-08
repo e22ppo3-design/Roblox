@@ -1,6 +1,6 @@
 -- ============================================================
--- LuaHook v12.0 — 模組 1 完整修正版
--- 反封鎖 + Linoria 框架 + 靜默自瞄（完整 + 自動射擊 + 無限距離 + 優先最近）
+-- LuaHook v12.0 — 模組 1 完整版
+-- 反封鎖 + Linoria 框架 + v11.0 靜默自瞄（完整）
 -- ============================================================
 
 -- ============ 反封鎖 ============
@@ -42,7 +42,7 @@ W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
     C = W.CurrentCamera
 end)
 
--- 反封鎖第 1 層：setmetatable
+-- 反封鎖 第 1 層
 do
     if getgenvFn and hookfunction and newcclosure and getrenv then
         getgenvFn().__LH_SetmtBP = game
@@ -68,7 +68,7 @@ do
     end
 end
 
--- 反封鎖第 2 層：__namecall
+-- 反封鎖 第 2 層
 if hookmetamethod and getrawmetatable and setreadonly then
     local mt = getrawmetatable(game)
     pcall(function() setreadonly(mt, false) end)
@@ -89,7 +89,7 @@ if hookmetamethod and getrawmetatable and setreadonly then
     pcall(function() setreadonly(mt, true) end)
 end
 
--- 反封鎖第 3 層：清連接
+-- 反封鎖 第 3 層
 local function nukeConnections()
     if not getconnections then return end
     pcall(function()
@@ -105,7 +105,7 @@ local function nukeConnections()
 end
 nukeConnections()
 
--- 反封鎖第 4 層：遠端過濾
+-- 反封鎖 第 4 層
 RS.DescendantAdded:Connect(function(obj)
     if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
         local n = obj.Name:lower()
@@ -121,7 +121,7 @@ LP.CharacterAdded:Connect(function()
     nukeConnections()
 end)
 
--- 反封鎖第 5 層：__index
+-- 反封鎖 第 5 層
 if hookmetamethod then
     local oldIndex
     oldIndex = hookmetamethod(game, "__index", function(self, key)
@@ -132,7 +132,7 @@ if hookmetamethod then
     end)
 end
 
--- 反封鎖第 6 層：AC 腳本癱瘓
+-- 反封鎖 第 6 層
 task.spawn(function()
     local tags = {"anticheat","ac","detection","ban","kick","security","moderation"}
     local function procAC(o)
@@ -152,7 +152,7 @@ task.spawn(function()
     game.DescendantAdded:Connect(procAC)
 end)
 
--- 反封鎖第 7 層：LocalScript3 常量掃描
+-- 反封鎖 第 7 層
 task.spawn(function()
     if not hookfunction or not getgc or not getfenv then return end
     pcall(function()
@@ -180,7 +180,7 @@ task.spawn(function()
     end)
 end)
 
--- 反封鎖第 8 層：假 ClientAlert
+-- 反封鎖 第 8 層
 pcall(function()
     local fakeEv = Instance.new("RemoteEvent")
     fakeEv.Name = "ClientAlert"
@@ -252,25 +252,24 @@ resolveAll({
 })
 Rivals.Ready = (Rivals.Util ~= nil and Rivals.Fighter ~= nil)
 
-local _weaponResolving = false
-local hookGunModule
-local function resolveWeaponModules()
-    if _weaponResolving then return end
-    if Rivals.Gun ~= nil then return end
-    _weaponResolving = true
-    task.spawn(function()
-        resolveAll({
-            function() if Rivals.Gun == nil then Rivals.Gun = loadGameModule(LP.PlayerScripts, {"Modules","ItemTypes","Gun"}) end end,
-        })
-        _weaponResolving = false
-        if Rivals.Gun ~= nil and hookGunModule ~= nil then pcall(hookGunModule) end
-    end)
+-- 抓 UseItem / Utility / EnumLibrary
+local UseItem = nil
+local Utility = Rivals.Util
+local EnumLibrary = Rivals.Enums
+local function refreshUseItem()
+    local Remotes = RS:FindFirstChild("Remotes")
+    local Replication = Remotes and Remotes:FindFirstChild("Replication")
+    local FighterRemote = Replication and Replication:FindFirstChild("Fighter")
+    if FighterRemote then
+        UseItem = FighterRemote:FindFirstChild("UseItem")
+    end
 end
-resolveWeaponModules()
+refreshUseItem()
 LP.CharacterAdded:Connect(function()
     task.wait(0.5)
-    resolveWeaponModules()
-    if Rivals.Ready and hookGunModule then hookGunModule() end
+    refreshUseItem()
+    if not Utility then Utility = Rivals.Util end
+    if not EnumLibrary then EnumLibrary = Rivals.Enums end
 end)
 
 -- ============ 工具 ============
@@ -354,18 +353,26 @@ end
 
 local HEAD_PARTS    = { "HitboxHead", "HitboxHeadSmall", "Head" }
 local TORSO_PARTS   = { "HitboxBody", "UpperTorso", "HumanoidRootPart", "LowerTorso" }
-local CLOSEST_PARTS = {
-    "HitboxHead","Head","UpperTorso","LowerTorso","HumanoidRootPart",
-    "LeftHand","RightHand","LeftFoot","RightFoot",
-    "LeftUpperArm","RightUpperArm","LeftUpperLeg","RightUpperLeg",
-}
+
+local function getHitPartName(char, partName)
+    if not char then return nil end
+    local map = {
+        ["Head"] = "Head", ["HumanoidRootPart"] = "HumanoidRootPart",
+        ["Torso"] = "Torso", ["UpperTorso"] = "UpperTorso", ["LowerTorso"] = "LowerTorso",
+    }
+    local n = map[partName] or "Head"
+    local p = char:FindFirstChild(n)
+    if p and p:IsA("BasePart") then return p end
+    return char:FindFirstChild("HumanoidRootPart")
+end
+
 local function pickPart(char, mode)
     if not char then return nil end
     if mode == "Closest" then
         local best, bestDist = nil, math.huge
         local vp     = C.ViewportSize
         local center = Vector2.new(vp.X * 0.5, vp.Y * 0.5)
-        for _, name in ipairs(CLOSEST_PARTS) do
+        for _, name in ipairs({"HitboxHead","Head","UpperTorso","LowerTorso","HumanoidRootPart","LeftHand","RightHand","LeftFoot","RightFoot","LeftUpperArm","RightUpperArm","LeftUpperLeg","RightUpperLeg"}) do
             local p = char:FindFirstChild(name)
             if p and p:IsA("BasePart") then
                 local sp, on = C:WorldToViewportPoint(p.Position)
@@ -443,14 +450,14 @@ do
         end
         local hitWorld   = hitPart.CFrame:PointToWorldSpace(objSpace)
         local objSpaceCF = hitPart.CFrame:ToObjectSpace(CFrame.new(hitWorld))
-        camData[utf8.char(0)] = Rivals.Util:EncodeCFrame(eyeCF)
-        camData[utf8.char(1)] = Rivals.Util:EncodeCFrame(muzzleCF)
+        camData[utf8.char(0)] = Utility:EncodeCFrame(eyeCF)
+        camData[utf8.char(1)] = Utility:EncodeCFrame(muzzleCF)
         camData[utf8.char(2)] = hitPart
-        camData[utf8.char(3)] = Rivals.Util:EncodeCFrame(objSpaceCF)
+        camData[utf8.char(3)] = Utility:EncodeCFrame(objSpaceCF)
     end
 
     function SharedEncode.encodeShot(camData, hitPart, targetChar, fromCamPos, claimOffset)
-        if not hitPart or not camData or not Rivals.Util then return false end
+        if not hitPart or not camData or not Utility then return false end
         local lead      = calculateLead(targetChar, fromCamPos)
         local off       = (typeof(claimOffset) == "Vector3") and claimOffset or Vector3.zero
         local leadedPos = hitPart.Position + lead + off
@@ -462,26 +469,26 @@ do
     end
 end
 
--- ============ 靜默自瞄（完整版）============
-local Config = {
-    SilentAim = false,
-    SilentAimVisCheck = false,
-    SilentAimJitter = true,
-    SilentAimTargetPart = "Head",
-    SilentAimFOV = 250,
-    SilentAimStickiness = 0.05,
-    SilentAimMultipoint = false,
-    SilentAimMultipointCount = 5,
-    SilentAimTorsoFallback = false,
-    SilentAimHitChance = 85,
-    SilentAimBodyMix = 25,
-    SilentAimJitterDeg = 1.5,
-    SilentAimAutoShoot = false,
-    SilentAimWallCheck = true,
-    SilentAim360 = false,
-    SilentAimFollowMuzzle = false,
-    MaxDistance = math.huge,
+-- ============ v11.0 靜默自瞄（完整）============
+local S = {
+    SilentEnabled = false,
+    SilentHitPart = "Head",
+    SilentHitChance = 100,
+    SilentFOV = 150,
+    SilentAutoShoot = false,
+    SilentFollowMuzzle = false,
+    SilentWallCheck = true,
+    Silent360 = false,
+    SilentJitter = true,
+    SilentAvoidDeflect = false,
+    SilentStickiness = 0.05,
+    SilentMultipoint = false,
+    SilentMultipointCount = 5,
+    SilentTorsoFallback = false,
+    SilentBodyMix = 25,
+    SilentJitterDeg = 1.5,
     TeamCheck = true,
+    ESPMaxDistance = math.huge,
 }
 
 local State = {
@@ -491,29 +498,29 @@ local State = {
     CamPos = Vector3.zero,
 }
 
-local function isValidTarget(player, checkVis)
+local function isValidTargetSilent(player, checkVis, keepDeflect)
     if not player or player == LP then return false end
-    if Config.TeamCheck and isTeammate(player) then return false end
+    if S.TeamCheck and isTeammate(player) then return false end
     if not isAlive(player) then return false end
     local char = player.Character
-    local hrp  = char and char:FindFirstChild("HumanoidRootPart")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
     if checkVis and not isVisible(hrp.Position) then return false end
     return true
 end
 
-local function selectTarget(opts)
+local function selectTargetSilent(opts)
     opts = opts or {}
-    local fov         = opts.fov or 90
-    local checkVis    = opts.checkVis or false
-    local mode        = opts.partMode or "Head"
-    local sticky      = opts.stickyTarget
+    local fov = opts.fov or 90
+    local checkVis = opts.checkVis or false
+    local mode = opts.partMode or "Head"
+    local sticky = opts.stickyTarget
     local stickyBonus = opts.stickyBonus or 0
-    local vp     = C.ViewportSize
+    local vp = C.ViewportSize
     local center = Vector2.new(vp.X * 0.5, vp.Y * 0.5)
     local best, bestPart, bestScore = nil, nil, math.huge
     for _, player in ipairs(getSafePlayers()) do
-        if player ~= LP and isValidTarget(player, false) then
+        if player ~= LP and isValidTargetSilent(player, false) then
             local char = player.Character
             local part = pickPart(char, mode)
             if part and (not checkVis or isVisible(part.Position)) then
@@ -532,179 +539,85 @@ local function selectTarget(opts)
     return best, bestPart
 end
 
-local function selectTarget360(mode, checkVis)
-    local myChar = LP.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return nil end
-    local best, bestPart, bestDist = nil, nil, math.huge
-    for _, player in ipairs(getSafePlayers()) do
-        if player ~= LP and isValidTarget(player, false) then
-            local char = player.Character
-            local part = pickPart(char, mode)
-            if part then
-                local isVis = (not checkVis) or isVisible(part.Position)
-                if isVis then
+local function findSilentTarget()
+    if S.Silent360 then
+        local best, bestD = nil, math.huge
+        local myChar = LP.Character
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        if not myRoot then return nil end
+        for _, p in ipairs(getSafePlayers()) do
+            if isValidTargetSilent(p, false) then
+                local part = getHitPartName(p.Character, S.SilentHitPart)
+                if part then
                     local d = (part.Position - myRoot.Position).Magnitude
-                    if d < bestDist then bestDist, best, bestPart = d, player, part end
+                    if d < bestD then best, bestD = p, d end
                 end
             end
         end
+        return best
     end
-    return best, bestPart
+    local tgt, part = selectTargetSilent({
+        fov = S.SilentFOV,
+        checkVis = S.SilentWallCheck,
+        partMode = S.SilentHitPart,
+        stickyTarget = State.SilentLastTarget,
+        stickyBonus = S.SilentStickiness,
+    })
+    return tgt
 end
 
--- 新增：選最近目標（自動射擊專用）
-local function selectNearestTarget(mode, checkVis)
-    local myChar = LP.Character
-    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-    if not myRoot then return nil end
-    local best, bestPart, bestDist = nil, nil, math.huge
-    for _, player in ipairs(getSafePlayers()) do
-        if player ~= LP and isValidTarget(player, false) then
-            local char = player.Character
-            local part = pickPart(char, mode)
-            if part then
-                local isVis = (not checkVis) or isVisible(part.Position)
-                if isVis then
-                    local d = (part.Position - myRoot.Position).Magnitude
-                    if d < bestDist then
-                        bestDist, best, bestPart = d, player, part
-                    end
-                end
-            end
-        end
-    end
-    return best, bestPart
-end
-
-local function silentPartVisible(part)
-    if not part or not part:IsA("BasePart") then return false end
-    if not Config.SilentAimMultipoint then return isVisible(part.Position) end
-    if isVisible(part.Position) then return true end
-    local n = math.max(1, math.floor(Config.SilentAimMultipointCount or 5))
-    local r = math.min(part.Size.X, part.Size.Y, part.Size.Z) * 0.4
-    for i = 1, n do
-        local a   = (i / n) * math.pi * 2
-        local off = Vector3.new(math.cos(a) * r, ((i % 2 == 0) and 0.5 or -0.5) * r, math.sin(a) * r)
-        if isVisible(part.Position + off) then return true end
-    end
-    return false
-end
-
-local function pickSilentPart(char, primary)
-    if not char then return primary end
-    if silentPartVisible(primary) then return primary end
-    for _, name in ipairs(HEAD_PARTS) do
-        local p = char:FindFirstChild(name)
-        if p and p ~= primary and silentPartVisible(p) then return p end
-    end
-    if Config.SilentAimTorsoFallback then
-        for _, name in ipairs(TORSO_PARTS) do
-            local p = char:FindFirstChild(name)
-            if p and silentPartVisible(p) then return p end
-        end
-    end
-    return primary
-end
-
--- 靜默開火
-local silentLastFire = 0
-local silentFireCD = 0.01
-
-local function silentFireAt(target, part)
+local function fireSilentAt(target)
+    if not UseItem or not Utility or not EnumLibrary then return false end
     if not target or not target.Character or not target.Character.Parent then return false end
     local lf = Rivals.Fighter and Rivals.Fighter.LocalFighter
     if not lf or not lf.EquippedItem then return false end
-    pcall(function() lf:Input("StartShooting") end)
+    local part = getHitPartName(target.Character, S.SilentHitPart)
+    if not part then return false end
+    local myChar = LP.Character
+    local root = myChar and myChar:FindFirstChild("HumanoidRootPart")
+    if not root then return false end
+    local objId = lf.EquippedItem:Get("ObjectID")
+    if not objId then return false end
+    local camData = {}
+    if not SharedEncode.encodeShot(camData, part, target.Character, root.Position) then return false end
+    local env = { [utf8.char(1)] = camData }
+    pcall(function()
+        UseItem:FireServer(objId, EnumLibrary:ToEnum("StartShooting"), env, nil)
+    end)
     State.SilentLastTarget = target
+    State.Shots = State.Shots + 1
+    State.Hits = State.Hits + 1
     return true
 end
 
--- 自動射擊循環（優先最近）
+local silentLastFire = 0
+local silentFireCD = 0.01
 local function silentAutoFireLoop()
-    if not Config.SilentAim then return end
-    if not Config.SilentAimAutoShoot then return end
+    if not S.SilentEnabled or not S.SilentAutoShoot then return end
     local now = tick()
     if now - silentLastFire < silentFireCD then return end
-    if Config.SilentAimHitChance < 100 then
-        if math.random(1, 100) > Config.SilentAimHitChance then return end
+    if S.SilentHitChance < 100 then
+        if math.random(1, 100) > S.SilentHitChance then return end
     end
-    -- 自動射擊一律優先選最近的敵人
-    local tgt, part = selectNearestTarget(Config.SilentAimTargetPart, Config.SilentAimWallCheck)
-    if not tgt or not part then return end
-    if silentFireAt(tgt, part) then silentLastFire = now end
+    local target = findSilentTarget()
+    if not target then return end
+    if fireSilentAt(target) then silentLastFire = now end
 end
 
 RunService.Heartbeat:Connect(function()
-    pcall(silentAutoFireLoop)
+    if S.SilentEnabled and S.SilentAutoShoot then
+        pcall(silentAutoFireLoop)
+    end
 end)
 
--- Gun 掛鉤（攔截 camData 改寫）
-hookGunModule = function()
-    if not Rivals.Ready or not Rivals.Gun then return end
-    if shared._LH_GunOrig then pcall(function() Rivals.Gun.StartShooting = shared._LH_GunOrig end) end
-    shared._gunHooked = game
-    local oldStart = Rivals.Gun.StartShooting
-    shared._LH_GunOrig = oldStart
-    local hookWrapper = function(self, ...)
-        local results = { oldStart(self, ...) }
-        pcall(function()
-            if not self.ClientFighter or not self.ClientFighter.IsLocalPlayer then return end
-            if not Config.SilentAim then return end
-            local camData = results[3]
-            if not camData or typeof(camData) ~= "table" then return end
-            local camPos = C.CFrame.Position
-            State.CamPos = camPos
-            local tgt, part
-            if Config.SilentAimAutoShoot then
-                tgt, part = selectNearestTarget(Config.SilentAimTargetPart, Config.SilentAimWallCheck)
-            elseif Config.SilentAim360 then
-                tgt, part = selectTarget360(Config.SilentAimTargetPart, Config.SilentAimWallCheck)
-            else
-                tgt, part = selectTarget({
-                    fov        = Config.SilentAimFOV,
-                    checkVis   = Config.SilentAimWallCheck,
-                    partMode   = Config.SilentAimTargetPart,
-                    stickyTarget = State.SilentLastTarget,
-                    stickyBonus  = Config.SilentAimStickiness or 0.05,
-                })
-            end
-            if tgt and part then
-                State.SilentLastTarget = tgt
-                if math.random(1, 100) <= (Config.SilentAimHitChance or 100) then
-                    local hitPart = pickSilentPart(tgt.Character, part)
-                    if math.random(1, 100) <= (Config.SilentAimBodyMix or 0) then
-                        local body = tgt.Character:FindFirstChild("HitboxBody")
-                        if body and silentPartVisible(body.Position) then hitPart = body end
-                    end
-                    local jit = Vector3.zero
-                    local jd = Config.SilentAimJitterDeg or 0
-                    if jd > 0 then
-                        local okD, unit = pcall(function()
-                            return Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5)
-                        end)
-                        local dir = Vector3.zero
-                        if okD and unit and unit.Magnitude > 1e-4 then dir = unit.Unit end
-                        local dist = 0
-                        pcall(function() dist = (hitPart.Position - camPos).Magnitude end)
-                        local off = math.min(math.tan(math.rad(jd)) * dist, 3) * (math.random() * 0.5)
-                        jit = dir * off
-                    end
-                    if SharedEncode.encodeShot(camData, hitPart, tgt.Character, camPos, jit) then
-                        results[4] = true
-                        State.Shots = State.Shots + 1
-                        State.Hits  = State.Hits  + 1
-                    end
-                end
-            end
-        end)
-        return unpack(results)
+UIS.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if not S.SilentEnabled or S.SilentAutoShoot then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        local target = findSilentTarget()
+        if target then pcall(fireSilentAt, target) end
     end
-    if setfenv then pcall(setfenv, hookWrapper, getfenv(oldStart)) end
-    if setreadonly then pcall(setreadonly, Rivals.Gun, false) end
-    Rivals.Gun.StartShooting = hookWrapper
-end
-hookGunModule()
+end)
 
 -- ============ Linoria 框架 ============
 local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
@@ -767,92 +680,51 @@ local Toggles = Library.Toggles or {}
 Library.Options = Options
 Library.Toggles = Toggles
 
--- ============ 靜默自瞄 GUI ============
+-- ============ 靜默自瞄 GUI（v11.0 格式）============
 do
     local L = Tabs.Combat:AddLeftGroupbox('靜默自瞄')
-    L:AddToggle('SilentAim', {
+    L:AddToggle('Silent_Enabled', {
         Text = '啟用靜默自瞄',
-        Default = Config.SilentAim,
-        Callback = function(v) Config.SilentAim = v end
-    }):AddKeyPicker('SilentAimKey', {
-        Default = 'None', Mode = 'Toggle',
-        SyncToggleState = true, Text = '靜默自瞄'
+        Default = false,
+        Callback = function(v) S.SilentEnabled = v end
+    }):AddKeyPicker('Silent_Key', {
+        Text = '靜默自瞄', Default = 'None', Mode = 'Toggle', NoUI = true,
+        SyncToggleState = true, Callback = function(state) S.SilentEnabled = state end
     })
-    L:AddToggle('SilentAimAutoShoot', {
-        Text = '自動射擊',
-        Default = Config.SilentAimAutoShoot,
-        Callback = function(v) Config.SilentAimAutoShoot = v end
+    L:AddToggle('Silent_AutoShoot', {
+        Text = '自動開槍',
+        Default = false,
+        Callback = function(v) S.SilentAutoShoot = v end
     })
-    L:AddToggle('SilentAimWallCheck', {
+    L:AddToggle('Silent_WallCheck', {
         Text = '牆壁檢測',
-        Default = Config.SilentAimWallCheck,
-        Callback = function(v) Config.SilentAimWallCheck = v end
+        Default = true,
+        Callback = function(v) S.SilentWallCheck = v end
     })
-    L:AddToggle('SilentAim360', {
-        Text = '360 度（背後也能打）',
-        Default = Config.SilentAim360,
-        Callback = function(v) Config.SilentAim360 = v end
+    L:AddToggle('Silent_360', {
+        Text = '360 度模式',
+        Default = false,
+        Callback = function(v) S.Silent360 = v end
     })
-    L:AddToggle('SilentAimFollowMuzzle', {
+    L:AddDropdown('Silent_HitPart', {
+        Text = '命中部位', Default = 'Head',
+        Values = {"Head","HumanoidRootPart","Torso","UpperTorso","LowerTorso"},
+        Callback = function(v) S.SilentHitPart = v end
+    })
+    L:AddSlider('Silent_FOV', {
+        Text = '視野半徑', Default = 150,
+        Min = 10, Max = 800, Rounding = 0, Compact = true,
+        Callback = function(v) S.SilentFOV = v end
+    })
+    L:AddSlider('Silent_HitChance', {
+        Text = '命中率 %', Default = 100,
+        Min = 0, Max = 100, Rounding = 0, Compact = true,
+        Callback = function(v) S.SilentHitChance = v end
+    })
+    L:AddToggle('Silent_FollowMuzzle', {
         Text = '跟隨槍口',
-        Default = Config.SilentAimFollowMuzzle,
-        Callback = function(v) Config.SilentAimFollowMuzzle = v end
-    })
-    L:AddDivider('目標')
-    L:AddDropdown('SilentAimTargetPart', {
-        Values = {'Head','Torso','Closest'},
-        Default = Config.SilentAimTargetPart,
-        Text = '目標骨骼',
-        Callback = function(v) Config.SilentAimTargetPart = v end
-    })
-    L:AddSlider('SilentAimFOV', {
-        Text = '視野半徑',
-        Default = Config.SilentAimFOV,
-        Min = 20, Max = 2000, Rounding = 0,
-        Callback = function(v) Config.SilentAimFOV = v end
-    })
-    L:AddSlider('SilentAimStickiness', {
-        Text = '黏著度',
-        Default = Config.SilentAimStickiness,
-        Min = 0, Max = 0.5, Rounding = 2,
-        Callback = function(v) Config.SilentAimStickiness = v end
-    })
-    L:AddDivider('隱蔽')
-    L:AddToggle('SilentAimMultipoint', {
-        Text = '多點採樣',
-        Default = Config.SilentAimMultipoint,
-        Callback = function(v) Config.SilentAimMultipoint = v end
-    })
-    local smpDep = L:AddDependencyBox()
-    smpDep:AddSlider('SilentAimMultipointCount', {
-        Text = '多點樣本數',
-        Default = Config.SilentAimMultipointCount,
-        Min = 1, Max = 12, Rounding = 0,
-        Callback = function(v) Config.SilentAimMultipointCount = math.floor(v) end
-    })
-    smpDep:SetupDependencies({ { Toggles.SilentAimMultipoint, true } })
-    L:AddToggle('SilentAimTorsoFallback', {
-        Text = '軀幹回退',
-        Default = Config.SilentAimTorsoFallback,
-        Callback = function(v) Config.SilentAimTorsoFallback = v end
-    })
-    L:AddSlider('SilentAimHitChance', {
-        Text = '命中機率 %',
-        Default = Config.SilentAimHitChance,
-        Min = 25, Max = 100, Rounding = 0,
-        Callback = function(v) Config.SilentAimHitChance = math.floor(v) end
-    })
-    L:AddSlider('SilentAimBodyMix', {
-        Text = '身體混合 %',
-        Default = Config.SilentAimBodyMix,
-        Min = 0, Max = 100, Rounding = 0,
-        Callback = function(v) Config.SilentAimBodyMix = math.floor(v) end
-    })
-    L:AddSlider('SilentAimJitterDeg', {
-        Text = '抖動錐角 (度)',
-        Default = Config.SilentAimJitterDeg,
-        Min = 0, Max = 10, Rounding = 1,
-        Callback = function(v) Config.SilentAimJitterDeg = v end
+        Default = false,
+        Callback = function(v) S.SilentFollowMuzzle = v end
     })
 end
 
@@ -868,12 +740,6 @@ do
         Callback = function() end
     })
     L:AddButton({ Text = '卸載腳本 (需雙擊)', DoubleClick = true, Func = function()
-        if shared._LH_GunOrig and Rivals.Gun then
-            if setreadonly then pcall(setreadonly, Rivals.Gun, false) end
-            Rivals.Gun.StartShooting = shared._LH_GunOrig
-        end
-        shared._gunHooked = nil
-        shared._LH_GunOrig = nil
         if getgenvFn then getgenvFn().__LH_SetmtBP = nil end
         Library:Unload()
         _G["\76\72"] = nil
@@ -904,4 +770,4 @@ end)
 
 Library:Notify('模組 1 載入完成', 4)
 _G["\76\72"] = Library
-print("[v12.0] 模組 1 完整修正版載入完成")
+print("[v12.0] 模組 1 載入完成")
