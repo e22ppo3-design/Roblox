@@ -2280,9 +2280,6 @@ local function isValidRageTarget(player, keepDeflect, rageScope)
 end
 
 print("[v12.0] 狂暴完整版 — 基礎載入完成")
--- ============================================================
--- 狂暴完整版 — 第二則（Rage 核心 + GUI）
--- ============================================================
 
 local Rage = {}
 ;(function()
