@@ -1,6 +1,5 @@
-
-print("[v12.0] 完整版載入完成")-- ============================================================
--- LuaHook v12.0 — 完整版（準心呼吸伸縮 + 彩虹 + Sky 系統 + Hold 快捷鍵）
+-- ============================================================
+-- LuaHook v12.0 — 完整版
 -- 第一段：反封鎖 + 框架 + Gun Mods + 靜默 + 自瞄 + 觸發 + ESP + Rage + AutoQueue
 -- ============================================================
 
@@ -117,7 +116,11 @@ end
 Players.PlayerAdded:Connect(function() _safePlayersCache = nil end)
 Players.PlayerRemoving:Connect(function() _safePlayersCache = nil end)
 
-repeat task.wait() until game:IsLoaded()
+-- ============================================
+-- 等遊戲載入 + 再等 10 秒（確保模組就緒）
+-- ============================================
+repeat task.wait(0.1) until game:IsLoaded()
+task.wait(10)
 
 local Rivals = { Ready = false }
 local function resolveAll(jobs, timeout)
@@ -712,7 +715,7 @@ local function updateMuzzleFlash()
     end
 end
 
--- 靜默
+-- 靜默自瞄
 local function isValidTargetSilent(player)
     if not player or player == LP then return false end
     if Config.TeamCheck and isTeammate(player) then return false end
@@ -766,7 +769,8 @@ local function findSilentTarget()
                 local part = getHitPartName(p.Character, Config.SilentHitPart)
                 if part then
                     local visibleOK = (not Config.SilentWallCheck) or isVisible(part.Position)
-                    if visibleOK then                        local d = (part.Position - myRoot.Position).Magnitude
+                    if visibleOK then
+                        local d = (part.Position - myRoot.Position).Magnitude
                         if d < bestD then best, bestD = p, d end
                     end
                 end
@@ -2006,7 +2010,6 @@ end)
 print("[v12.0] 第一段載入完成")
 -- ============================================================
 -- 第二段：Sky 系統 + GUI + 自訂準心（呼吸伸縮 + 四線同色彩虹）
--- 順序：Linoria → SkySystem 宣告 → GUI → CrosshairRenderer
 -- ============================================================
 
 local repo = 'https://raw.githubusercontent.com/mstudio45/LinoriaLib/main/'
@@ -2060,7 +2063,7 @@ end)
 if not okWin or not Window then warn("[LuaHook] GUI window failed:", Window); return end
 
 -- ============================================================
--- Sky 系統（三層防護：事件 + 屬性 + 快速輪詢）
+-- Sky 系統（含換圖自動重建，三層防護）
 -- ============================================================
 local SkySystem = {}
 ;(function()
@@ -2081,8 +2084,8 @@ local SkySystem = {}
     SkySystem.SkyboxOrder = { "Off", "Space", "Sunset", "Clouds", "Storm", "Winter", "Vaporwave" }
 
     local _sky = nil
-    local _skyConn = nil          -- Lighting.ChildAdded 守衛
-    local _repopConn = nil        -- 快速輪詢
+    local _skyConn = nil
+    local _repopConn = nil
     local _lastRepopT = 0
     local _lastPlace = game.PlaceId
     local _origSkies = {}
@@ -2131,12 +2134,9 @@ local SkySystem = {}
         _sky = s
     end
 
-    -- 檢查 Sky 是否還在，不見就重建
     local function repopSky()
         if not Config.SkyboxPreset or Config.SkyboxPreset == "Off" then return end
-        -- 檢查是否還在
         if _sky and _sky.Parent == Lighting then
-            -- 順便檢查有沒有別的 Sky 搶進來
             local hasForeign = false
             for _, c in ipairs(Lighting:GetChildren()) do
                 if c:IsA("Sky") and not c:GetAttribute("WX_Custom") then
@@ -2146,7 +2146,6 @@ local SkySystem = {}
             end
             if not hasForeign then return end
         end
-        -- 重建
         _sky = nil
         local preset = Config.SkyboxPreset
         hideMapSkies()
@@ -2160,11 +2159,9 @@ local SkySystem = {}
                and Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
                 table.insert(_origSkies, c)
                 pcall(function() c.Parent = nil end)
-                -- 立刻重建我們的
                 task.defer(repopSky)
             end
         end)
-        -- 監聽 Sky 被移除
         Lighting.ChildRemoved:Connect(function(c)
             if c:IsA("Sky") and c:GetAttribute("WX_Custom") then
                 _sky = nil
@@ -2177,7 +2174,6 @@ local SkySystem = {}
         if _skyConn then _skyConn:Disconnect(); _skyConn = nil end
     end
 
-    -- 快速輪詢 0.1 秒
     local function startRepop()
         if _repopConn then return end
         _repopConn = RunService.Heartbeat:Connect(function()
@@ -2185,7 +2181,6 @@ local SkySystem = {}
             local now = tick()
             if now - _lastRepopT < 0.1 then return end
             _lastRepopT = now
-            -- 換 place 偵測
             if game.PlaceId ~= _lastPlace then
                 _lastPlace = game.PlaceId
                 _sky = nil
@@ -2235,7 +2230,6 @@ local SkySystem = {}
         end
     end
 
-    -- 角色重生監聽（換圖時角色會被重建）
     LP.CharacterAdded:Connect(function()
         if Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
             task.wait(0.3)
@@ -2246,7 +2240,6 @@ local SkySystem = {}
         end
     end)
 
-    -- Workspace 屬性變動（有些圖會換 Workspace 屬性觸發重建）
     W:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
         if Config.SkyboxPreset and Config.SkyboxPreset ~= "Off" then
             task.defer(repopSky)
@@ -2749,7 +2742,6 @@ local CrosshairRenderer = {}
         local col   = Config.FXCrosshairColor or WHITE
         local outl  = Config.FXCrosshairOutline ~= false
 
-        -- 持續旋轉
         if Config.FXCrosshairSpin then
             _fx.rotBase = (_fx.rotBase + (Config.FXCrosshairSpinSpeed or 1.0) * 360 * dt) % 360
         else
@@ -2759,7 +2751,6 @@ local CrosshairRenderer = {}
             end
         end
 
-        -- 自動呼吸伸縮
         local breathAmt = 0
         if Config.FXCrosshairBounce then
             local speed = Config.FXCrosshairBreathSpeed or 0.8
@@ -2770,7 +2761,6 @@ local CrosshairRenderer = {}
         end
         local gapEff = gap + breathAmt
 
-        -- 彩虹：整組同一個色相
         local useRainbow = Config.FXCrosshairRainbow
         if useRainbow then
             _fx.hue = (_fx.hue + dt * (Config.FXCrosshairRainbowSpeed or 0.15)) % 1
@@ -2780,7 +2770,6 @@ local CrosshairRenderer = {}
             sharedCol = Color3.fromHSV(_fx.hue, 1, 1)
         end
 
-        -- 命中加長
         if Config.FXCrosshairHitPop ~= false then
             local h = State and State.Hits or 0
             if h ~= _fx.lastHits then
@@ -2902,3 +2891,4 @@ pcall(Rage.init)
 
 Library:Notify('v12.0 完整版載入完成（準心 + Sky）', 4)
 _G["\76\72"] = Library
+print("[v12.0] 完整版載入完成")
